@@ -146,3 +146,31 @@ The initial `desktop-latest` tag is bootstrapped with the maintainer's GitHub ac
 A workflow token can upload a release for an existing tag but can lack permission
 to create this first tag from a branch that changes workflow files. Later releases
 reuse that feed tag and replace only its Linux manifest.
+
+## A phone cannot connect to the server
+
+The mobile app shows "Reconnecting" for the server and tries again without end. Its Support log
+(Settings > Support > Support log) shows `[webrtc/ice/failed]` after an answer that came quickly.
+The host logs no error.
+
+Check the network route of the host first. The file
+`openbot-remote-network-route-v1.json` in the host's data directory holds it:
+
+- `{"version":1,"route":"private"}`: devices connect only over a private network, such as Tailscale
+  or the LAN. The host uses no STUN or TURN server and drops all public candidates. A device that is
+  not on that network cannot connect. A desktop on the tailnet connects, so the server looks correct.
+- `{"version":1,"route":"openbot"}`: devices connect from all networks through STUN and TURN. This
+  is the default.
+
+To fix the connection, put the device on the private network, or change the route to `openbot`.
+The route is a local setting with no Team API route. On a server with no window:
+
+1. Make sure that no agent turn runs. A restart stops it.
+2. Stop `openbot.service`.
+3. Keep a copy of the file, then write the new route to it as the service user.
+4. Start `openbot.service`. The host reads the route when it connects to Signal.
+
+A slow host is a different fault. If the Support log shows `[timeout/connect/...]`, or a desktop
+needs 20 seconds or more to open its channels, restart `openbot.service`. Upstream commit
+`4c8d48d7c0` ("Keep a host answering devices when one device's setup stops") changes this area.
+The fork does not have it at v0.68.0, and it is not confirmed that it fixes this fault.
