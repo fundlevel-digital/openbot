@@ -60,6 +60,44 @@ listener and the agent CLI commands read this file. Its format did not change. T
 `state` is `ready` when no agent failed, `degraded` when some agents failed, and `waiting` when the
 cycle could not start (then `error` has a label). `failures` maps an agent id to a label.
 
+## Session names
+
+`identity-sync.py` writes the agent's relay name, for example `openbot-<server>-tony`, into the
+`agent_name` field of each history session that it can attribute. It also writes one
+`openbot_identity` marker per session. The history collector sends the index to Agent Relay.
+There are three kinds of attribution:
+
+| Kind | Evidence | Marker |
+| --- | --- | --- |
+| `conversation` | OpenBot's own record: the provider session of an agent's conversation. This always wins. | `attribution: openbot_provider_session`, with the OpenBot thread id. Same shape as before. |
+| `parent` | The session's parent chain in `session_relationships` (at most 16 steps, no loops) ends at an attributed session. | `attribution: openbot_parent_session`, `attribution_kind: parent`, `parent_session_id`. No OpenBot thread id. |
+| `workspace` | The session's `cwd` and each workspace root are the agent's `workspacePath` or a folder in it. Whole path parts are compared, so `.../agent-x-old` does not match `.../agent-x`. | `attribution: openbot_agent_workspace`, `attribution_kind: workspace`. No OpenBot thread id. |
+
+A `parent` or `workspace` session is a side run that the agent started, for example a
+`codex exec` review. It is not the agent's conversation.
+
+These sessions stay without a name. The journal line counts them in `unnamed_by_reason`:
+
+| Reason | Why |
+| --- | --- |
+| `root_directory` | `cwd` is `/`. Background runs of a provider use it, not an agent. |
+| `unknown_agent_workspace` | A workspace folder of an agent that is not in the roster, for example a deleted agent. |
+| `removed_agent_conversation` | A conversation of an agent that is not in the roster. |
+| `shared_directory`, `temporary_directory` | A shared folder, or `/tmp`, `/var/tmp`, `/dev/shm`. More than one agent can use them. |
+| `conflicting_evidence` | The paths name more than one agent, or the paths and the parent name different agents. |
+| `outside_agent_workspaces`, `no_path` | No evidence links the session to an agent. |
+
+The helper never makes a server-level name. It never replaces a name that another source set
+(`kept_other_name`). It never removes a name: when the evidence goes away later, for example
+when an agent is deleted, the session keeps its name and marker
+(`kept_without_current_evidence`). Before the first change of a session, the old value is saved
+in `original-agent-names.json`. Each change advances the change-feed revision, so the collector
+sends it again. A repeat run with no new evidence changes nothing.
+
+Run `identity-sync.py --dry-run --once` as the OpenBot user to see the counts without a change. A
+dry run opens the history index read-only, takes no lock and writes no file, so it can run next to
+the service.
+
 ## Data that leaves the server
 
 All requests go to `relayOrigin` over HTTPS, with no redirects, a 15 or 20 second timeout and a
@@ -72,7 +110,11 @@ response size limit.
 - The operator command `recover --apply` sends `DELETE /v1/agents/<name>` with the key.
 - The messaging helper sends each agent token for verification and heartbeats. Agents send their
   own messages with the CLI.
-- No conversation text, file or attachment is sent by these helpers.
+- The history collector sends the history index, which now also has the relay name and the
+  identity marker of each attributed session (agent id and name, relay name, server name, and the
+  OpenBot thread id or the parent session id).
+- No conversation text, file or attachment is sent by these helpers. The history collector is a
+  separate part with its own sharing settings.
 
 ## Config
 
