@@ -12,6 +12,7 @@
 // of a server; a member reads only their own levels. `none` hides a server from a member and refuses
 // it, a role at `manage` gives the member the rights of the person who added it, and a list of agents
 // keeps the server from each other agent. The entries stay after a restart and go with the server.
+// This branch's paged routes (`mcp-server-pages-v1`) apply the same `mcp-access-v1` rules.
 // Run: `bun run test:mcp-member-access`.
 // Writes .openbot-build/mcp-member-access-e2e/report.json.
 
@@ -36,6 +37,11 @@ import {
 } from "@openbot/contracts/team-protocol";
 import { MCP_MEMBER_ACCESS_CAPABILITY, teamCapabilitiesForProtocol } from "@openbot/contracts/team-protocol/current";
 import { MCP_ACCESS_CAPABILITY, MCP_ACCESS_ROUTES } from "@openbot/contracts/team-protocol/mcp-access-v1";
+import {
+  decodeMcpServerPage,
+  decodeMcpSignInPage,
+  MCP_PAGES_ROUTES,
+} from "@openbot/contracts/team-protocol/mcp-pages-v1";
 import { MCP_SIGN_IN_APP_ROUTES } from "@openbot/contracts/team-protocol/mcp-sign-in-app-v1";
 import { MCP_SIGN_IN_ROUTES } from "@openbot/contracts/team-protocol/mcp-sign-in-v1";
 import { MCP_ROUTES } from "@openbot/contracts/team-protocol/mcp-v1";
@@ -371,6 +377,27 @@ async function setAccess(token: string, mcpServerId: string, access: McpServerAc
   return call("POST", MCP_ACCESS_ROUTES.set, { token, body });
 }
 
+/** All items of one paged route (`mcp-server-pages-v1`), page by page, decoded as a client does. */
+async function pagedItems<T>(
+  token: string,
+  path: string,
+  decode: (value: unknown) => { items: T[]; nextCursor: string | null },
+): Promise<T[]> {
+  const items: T[] = [];
+  let cursor: string | null = null;
+  do {
+    const response = await call("POST", path, { token, body: { cursor } });
+    assert.equal(response.status, 200, `${path} returned ${response.status}: ${JSON.stringify(response.body)}`);
+    const page = decode(response.body);
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor !== null);
+  return items;
+}
+
+const pagedServers = (token: string) => pagedItems(token, MCP_PAGES_ROUTES.list, decodeMcpServerPage);
+const pagedSignIns = (token: string) => pagedItems(token, MCP_PAGES_ROUTES.signIns, decodeMcpSignInPage);
+
 async function listedNames(token: string): Promise<string[]> {
   const list = await call("GET", MCP_ROUTES.list, { token });
   assert.equal(list.status, 200, `List returned ${list.status}.`);
@@ -664,6 +691,63 @@ try {
     const removed = await call("POST", MCP_ROUTES.remove, { token: member, body: { mcpServerId: own.id } });
     assert.equal(removed.status, 200, `Removing the member's own row returned ${removed.status}.`);
     return { test: 403, status: 403, signIns: 0 };
+  });
+
+  await step("access: the paged routes hide a server at `none` and refuse it, as the other routes do", async () => {
+    assert.equal((await setAccess(owner, ownerRow.id, { ...OPEN, everyone: "none" })).status, 200);
+    const pagedNames = async (token: string) => (await pagedServers(token)).map((server) => server.name);
+    assert.deepEqual(await pagedNames(member), [], "The paged list showed a hidden server to a member.");
+    assert.deepEqual(await pagedNames(owner), ["trello"]);
+    signedIn = [{ mcpServerId: ownerRow.id, signedIn: true }];
+    assert.deepEqual(
+      await pagedSignIns(member),
+      [],
+      "The paged sign-ins showed the state of a hidden server to a member.",
+    );
+    assert.deepEqual(await pagedSignIns(owner), signedIn);
+    calls.length = 0;
+    const tries = {
+      saveOnAddress: await call("POST", MCP_PAGES_ROUTES.save, {
+        token: member,
+        body: { config: httpServer("trello-copy", OWNER_URL) },
+      }),
+      toggle: await call("POST", MCP_PAGES_ROUTES.toggle, {
+        token: member,
+        body: { mcpServerId: ownerRow.id, enabled: true },
+      }),
+      remove: await call("POST", MCP_PAGES_ROUTES.remove, { token: member, body: { mcpServerId: ownerRow.id } }),
+      signOut: await call("POST", MCP_PAGES_ROUTES.signOut, { token: member, body: { mcpServerId: ownerRow.id } }),
+    };
+    for (const [label, response] of Object.entries(tries)) refused(response, NOT_YOURS, `paged ${label}`);
+    assert.deepEqual(calls, [], "A refused paged call reached the sign-in.");
+    assert.deepEqual(await pagedNames(owner), ["trello"], "A refused paged call changed the owner's rows.");
+    // The member's own server on another address: each paged route works.
+    const saved = await call("POST", MCP_PAGES_ROUTES.save, {
+      token: member,
+      body: { config: httpServer("notion-paged", MEMBER_URL) },
+    });
+    assert.equal(saved.status, 200, `The paged save returned ${saved.status}: ${JSON.stringify(saved.body)}`);
+    const own = (await pagedServers(member)).find((server) => server.name === "notion-paged");
+    assert.ok(own, "The member's own paged save is not in the paged list.");
+    const toggled = await call("POST", MCP_PAGES_ROUTES.toggle, {
+      token: member,
+      body: { mcpServerId: own.id, enabled: true },
+    });
+    assert.equal(toggled.status, 200, `The paged toggle returned ${toggled.status}.`);
+    signedIn = [
+      { mcpServerId: ownerRow.id, signedIn: true },
+      { mcpServerId: own.id, signedIn: true },
+    ];
+    assert.deepEqual(await pagedSignIns(member), [{ mcpServerId: own.id, signedIn: true }]);
+    const signedOut = await call("POST", MCP_PAGES_ROUTES.signOut, { token: member, body: { mcpServerId: own.id } });
+    assert.equal(signedOut.status, 200, `The paged sign-out returned ${signedOut.status}.`);
+    assert.deepEqual(calls, [`sign-out ${own.id}`]);
+    const removed = await call("POST", MCP_PAGES_ROUTES.remove, { token: member, body: { mcpServerId: own.id } });
+    assert.equal(removed.status, 200, `The paged remove returned ${removed.status}.`);
+    assert.deepEqual(await pagedNames(member), []);
+    signedIn = [];
+    calls.length = 0;
+    return { refused: Object.fromEntries(Object.entries(tries).map(([label, r]) => [label, r.status])), own: 200 };
   });
 
   const roleId = "role-ops";
