@@ -486,6 +486,9 @@ try {
       { id: "fixture-owner", name: "Fixture owner" },
     ),
   );
+  // Open tasks: a page body larger than one frame keeps open runs (`pageTasks`, upstream #6099) and
+  // drops finished tasks that no page message names. Paused tasks stay open and start no turn, so the
+  // body stays larger than one frame and goes through the JSON file path.
   const tasks: ChannelTask[] = Array.from({ length: 32 }, (_, index) => {
     const id = randomUUID();
     return {
@@ -501,7 +504,7 @@ try {
       sourceMessageIds: [],
       dependencies: [],
       resources: [],
-      state: "completed",
+      state: "paused",
       revision: 1,
       assignmentCount: 0,
       error: null,
