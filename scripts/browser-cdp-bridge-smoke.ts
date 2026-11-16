@@ -161,6 +161,10 @@ export async function runCdpBridgeScenario(browser: BrowserHost, origin: string)
     const cookies = await cli("eval", "document.cookie");
     assert.ok(!cookies.includes("fixture-cdp-cookie-591627") && cookies.includes("[redacted]"));
     await cli("click", "#increment");
+    // The click can return before the page handles the input, as on a Linux runner under xvfb (run
+    // 43905915165 read "0"). Wait for the page state with agent-browser's own bounded wait; a click
+    // that never reaches the button still fails here.
+    await cli("wait", "--fn", "document.querySelector('#count').textContent === '1'");
     const count = await cli("get", "text", "#count");
     assert.ok(count.includes("1"), `agent-browser must read the updated fixture count: ${count}`);
     checks.push("real agent-browser preserves page storage and cookies and clicks the existing tab");
