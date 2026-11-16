@@ -229,7 +229,19 @@ try {
   await until(() =>
     service.store.tasks(channelId).some((item) => item.id === blocked.id && item.ownerAgentId === lead.id),
   );
+  // Upstream #6077: a tick skips a routine while one of its runs has a task that is not finished.
   await runCauseEffect(scheduler.processDue(new Date(due + 900_000)));
+  assert.equal(
+    scheduler.listRuns({ channelId, routineId: routine.id }).length,
+    1,
+    "A live resumed run holds the tick.",
+  );
+  // The fixture's agents are always busy, so no turn runs: the resumed task ends here, as its turn
+  // would. The next tick then starts a new run.
+  const routed = service.store.tasks(channelId).find((item) => item.id === blocked.id);
+  assert.ok(routed);
+  service.store.update(service.store.get(channelId), { tasks: [{ ...routed, state: "completed" }] });
+  await runCauseEffect(scheduler.processDue(new Date(due + 1_200_000)));
   await until(() => service.store.tasks(channelId).filter((item) => item.ownerAgentId === lead.id).length === 3);
   assert.equal(scheduler.listRuns({ channelId, routineId: routine.id }).length, 2);
   assert.equal(errors.length, 0);

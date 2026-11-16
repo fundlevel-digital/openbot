@@ -118,6 +118,19 @@ workflow, and complete the upgrade audit before publishing the next numeric desk
 Do not point this branch at the repository-wide latest release, move the other application's
 default branch, or publish desktop packages under its version tags.
 
+## Known exceptions
+
+- Channel routines: from upstream v0.71.0 (#6077), a scheduled tick does not start a run while an
+  earlier run of the same routine has a task that is not completed or cancelled. A resumed run, such
+  as one that stopped for a provider billing failure, therefore blocks later ticks of that routine
+  until it ends. The fork's billing check in `channel-routine-scheduler.ts` runs before that rule.
+  It is now redundant, because a paused task is also not finished, but it is kept.
+  `scripts/cursor-payment-required-e2e.ts` checks both.
+- Released English text: before the v0.71.0 merge, the fork changed the English text of the released
+  key `error.provider.codexOutdated` (minimum Codex version 0.156.0 to 0.166.0). The i18n rule says
+  that released English stays the same byte for byte, because remote clients and older versions read
+  it. The v0.71.0 merge does not change it. The owner is informed.
+
 ## Recover a queued Mac build
 
 For `desktop-v0.60.12`, the recovery workflow uses a standard macOS 15 ARM64 runner.
