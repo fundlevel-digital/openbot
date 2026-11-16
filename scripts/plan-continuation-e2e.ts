@@ -24,7 +24,7 @@
 //   9. A routine run does not continue.
 //   9a. A continuation in a new session, as after a tool change, gets the request again before the
 //       note (#8779). The session that ran the request gets the note only (check 1).
-//  10. A restart while a continuation waits completes the request with no new turn.
+//  10. A restart while a continuation waits for a turn slot completes the request with no new turn.
 //  11. An MCP sign-in card stops an open plan in the main chat and a side thread. A new user
 //      message can continue its plan even though the old card stays in that conversation.
 // Not checked: a message sent in the short gap before a continuation starts. The drain starts the
@@ -41,6 +41,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   AGENT_PROVIDERS,
+  AGENT_TASK_LIMIT_DEFAULT,
   type AgentEvent,
   type BrowserTab,
   mcpSignInEvent,
@@ -270,6 +271,9 @@ async function check(name: string, run: () => Promise<unknown>) {
 
 await writeFile(fakeCodex, FAKE_CODEX, { mode: 0o755 });
 
+/** The total of turns that an owner set in Server Settings, or null for automatic (no limit here). */
+let turnLimit: number | null = null;
+
 function openService() {
   const database = new OpenBotDatabase(userData);
   const store = new AgentStore(userData, home, database);
@@ -280,6 +284,7 @@ function openService() {
     browser,
     preferredProvider: "codex",
     offProviders: AGENT_PROVIDERS.filter((provider) => provider !== "codex"),
+    hostTurnLimits: { turnLimit: () => turnLimit, agentTaskLimit: () => AGENT_TASK_LIMIT_DEFAULT },
     webhookRoutines: () => agentWebhookRoutineWriter(hostEvents),
     marketplaceAppServer: (appId) => {
       const config = service.listMcpServers().find((row) => row.name === appId);
@@ -1588,8 +1593,16 @@ try {
   });
 
   await check("a restart while a continuation waits completes the request with no new turn", async () => {
+    // Another agent's turn runs until the restart. A hidden agent works since #7825, so it no longer
+    // holds the queue.
+    const busy = await createAgent("Busy");
+    const releaseBusy = join(root, "busy-turn");
+    const busyText = "Keep the slot.";
+    await send(busy.id, `${busyText} ${plan({ steps: [], holdUntil: releaseBusy })}`);
+    await waitFor("the busy turn", () => loggedTurns().some((turn) => turn.text.includes(busyText)));
     const agent = await createAgent("Restart");
     const mark = loggedTurns().length;
+    const ownTurns = () => turnsSince(mark).filter((turn) => !turn.text.includes(busyText));
     const id = await send(
       agent.id,
       `Index it. ${plan(
@@ -1608,9 +1621,11 @@ try {
         },
       )}`,
     );
-    await waitFor("the first turn", () => turnsSince(mark).length === 1);
-    // A hidden agent finishes its turn, and its queue waits: the continuation waits too.
-    await runCauseEffect(current.service.setAgentHidden({ agentId: agent.id, hidden: true }));
+    await waitFor("the first turn", () => ownTurns().length === 1);
+    // An owner lowers the turn limit to the one slot that the busy turn keeps. The running turn
+    // ends, and the continuation waits for a free slot.
+    turnLimit = 1;
+    current.service.turnLimitsChanged();
     await waitFor("the continuation to wait", () => continuationLines(agent.id).length === 1);
     assert.equal(
       current.mailbox.getDelivery(id)?.planContinuation?.queued,
@@ -1619,12 +1634,13 @@ try {
     );
     await runCauseEffect(current.service.stop());
     current.database.close();
+    turnLimit = null;
+    await writeFile(releaseBusy, "");
     current = openService();
-    await runCauseEffect(current.service.initialize());
     const since = current.events.length;
-    await runCauseEffect(current.service.setAgentHidden({ agentId: agent.id, hidden: false }));
+    await runCauseEffect(current.service.initialize());
     assert.equal(await settled(id), "completed", "The request completes.");
-    assert.equal(turnsSince(mark).length, 1, "No continuation turn runs after the restart.");
+    assert.equal(ownTurns().length, 1, "No continuation turn runs after the restart.");
     assert.equal(
       current.service.listQueue(agent.id).deliveries.filter((delivery) => !ended(delivery.status)).length,
       0,
