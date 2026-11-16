@@ -173,6 +173,7 @@ try {
     store,
     redact: (text) => text,
     capturedSteps: () => Effect.succeed(null),
+    pageText: () => Effect.succeed(null),
     recentThreads: () => [],
     reviewedPage: (owner, threadId, input, page) => review.recordRead(owner, `thread:${threadId}`, input, page),
   });

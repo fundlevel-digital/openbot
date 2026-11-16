@@ -225,6 +225,8 @@ const teamBrowser: TeamApiBrowser = {
   dispatchViewInput: unused,
   copyViewSelection: unused,
   importSignIn: unused,
+  startTeach: unused,
+  stopTeach: () => [],
 };
 
 await writeFile(fakeCodex, FAKE_CODEX, { mode: 0o755 });

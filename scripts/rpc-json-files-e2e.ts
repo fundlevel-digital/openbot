@@ -144,6 +144,8 @@ const teamBrowser: TeamApiBrowser = {
   dispatchViewInput: unused,
   copyViewSelection: unused,
   importSignIn: unused,
+  startTeach: unused,
+  stopTeach: () => [],
 };
 
 type ResponseFrame = Extract<ReturnType<typeof decodeTeamProtocolV2RpcFrame>, { type: "response" }>;

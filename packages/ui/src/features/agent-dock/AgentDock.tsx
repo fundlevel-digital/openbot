@@ -36,6 +36,7 @@ import {
 } from "solid-js";
 import { AmbientMotion } from "../../ambient-motion";
 import type { AvatarMood } from "../../bloub-avatar";
+import { createMenuSearch } from "../../components/createMenuSearch";
 import { createScrollFades } from "../../components/createScrollFades";
 import type { ComposerAgent } from "../../data";
 import { useText } from "../../text";
@@ -114,10 +115,25 @@ export interface AgentDockChannel {
   imageUrl: string | null;
 }
 
-/** `state` is the badge on the seat: the same state as the agent's or channel's badge in the sidebar. */
+/**
+ * `state` is the badge on the seat: the same state as the agent's or channel's badge in the sidebar.
+ * A `temporary` seat is not on the dock: it shows while it has a new message or waits for the user. Its
+ * menus add it to the dock in place of removing it.
+ */
 export type AgentDockSeat =
-  | { kind: "agent"; agent: ComposerAgent; mood: AvatarMood; state: SidebarAgentState | undefined }
-  | { kind: "channel"; channel: AgentDockChannel; state: SidebarAgentState | undefined };
+  | {
+      kind: "agent";
+      agent: ComposerAgent;
+      mood: AvatarMood;
+      state: SidebarAgentState | undefined;
+      temporary?: boolean | undefined;
+    }
+  | {
+      kind: "channel";
+      channel: AgentDockChannel;
+      state: SidebarAgentState | undefined;
+      temporary?: boolean | undefined;
+    };
 
 /**
  * The dock body in the document: the part between and around the seats that takes the pointer. It has the
@@ -551,24 +567,12 @@ export function AgentDock(props: AgentDockProps) {
       : t("agent.dock.noMatch", { query: addQuery().trim() });
   const addFades = createScrollFades();
   onCleanup(() => addFades.stop());
-  let addField: HTMLInputElement | undefined;
-  let addList: HTMLDivElement | undefined;
-  const addFirstRow = () => addList?.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])');
-  const onAddSearchKey = (event: KeyboardEvent) => {
-    if (event.key === "Escape" || event.key === "Tab") return;
-    // The menu reads a letter as a jump to a row. In the field, letters are the search.
-    event.stopPropagation();
-    // A key that chooses an input method candidate stays in the field.
-    if (event.isComposing) return;
-    const enter = event.key === "Enter" && addQuery().trim() !== "";
-    if (!enter && event.key !== "ArrowDown") return;
-    const row = addFirstRow();
-    if (!row) return;
-    event.preventDefault();
-    row.focus();
-    // Enter adds the first match through its row, so the menu closes as it does for a click.
-    if (enter) row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-  };
+  const addMenu = createMenuSearch({
+    row: '[role="menuitem"]:not([data-disabled])',
+    enabled: addSearch,
+    // Enter adds the first match.
+    enter: () => addQuery().trim() !== "",
+  });
   /**
    * Applies a new search, and morphs the list to its new rows: the height follows them, rows that
    * stay slide to their new places, and new rows fade in. A row keeps its element while it matches.
@@ -576,7 +580,7 @@ export function AgentDock(props: AgentDockProps) {
   /** The morph animations that run, so a new search stops them and no other animation in the list. */
   let addMorphs: Animation[] = [];
   const searchAdd = (value: string) => {
-    const list = addList;
+    const list = addMenu.list();
     if (!list || typeof list.animate !== "function" || prefersReducedMotion()) {
       setAddQuery(value);
       if (list) list.scrollTop = 0;
@@ -619,22 +623,8 @@ export function AgentDock(props: AgentDockProps) {
     }
   };
   const bindAddList = (element: HTMLDivElement) => {
-    addList = element;
+    addMenu.bindList(element);
     addFades.bind(element);
-    // A letter or Backspace typed on a row goes to the field, so typing always edits the search.
-    // A plain list has no field, and keeps the jump to a row.
-    element.addEventListener(
-      "keydown",
-      (event) => {
-        if (!addSearch() || !addField) return;
-        const text = event.key !== " " && Array.from(event.key).length === 1;
-        if (!text && event.key !== "Backspace") return;
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
-        event.stopPropagation();
-        addField.focus();
-      },
-      true,
-    );
   };
 
   /**
@@ -1317,10 +1307,20 @@ export function AgentDock(props: AgentDockProps) {
                                 )}
                               </Show>
                               <ContextMenu.Separator />
-                              <ContextMenu.Item onSelectAfterClose={() => props.onRemove(refOfKey(id))}>
-                                <PanelRight aria-hidden="true" />
-                                {t("agent.dock.remove")}
-                              </ContextMenu.Item>
+                              <Show
+                                when={seat().temporary}
+                                fallback={
+                                  <ContextMenu.Item onSelectAfterClose={() => props.onRemove(refOfKey(id))}>
+                                    <PanelRight aria-hidden="true" />
+                                    {t("agent.dock.remove")}
+                                  </ContextMenu.Item>
+                                }
+                              >
+                                <ContextMenu.Item onSelectAfterClose={() => props.onAdd(refOfKey(id))}>
+                                  <Plus aria-hidden="true" />
+                                  {t("agent.dock.add")}
+                                </ContextMenu.Item>
+                              </Show>
                               <Show when={props.onHide}>
                                 {(hide) => (
                                   <ContextMenu.Item
@@ -1365,25 +1365,14 @@ export function AgentDock(props: AgentDockProps) {
                   <DropdownMenu.Portal>
                     <DropdownMenu.Content
                       class={addMenuClass()}
-                      onOpenAutoFocus={(event: Event) => {
-                        if (!addSearch()) return;
-                        event.preventDefault();
-                        addField?.focus();
-                      }}
-                      onFocusIn={(event: FocusEvent) => {
-                        // The menu takes the focus itself after a pointer opens it and when the
-                        // pointer leaves a row. With a field, the focus goes on to the field, so
-                        // typing searches and does not jump to a row.
-                        if (addSearch() && event.target === event.currentTarget) addField?.focus();
-                      }}
+                      onOpenAutoFocus={addMenu.onOpenAutoFocus}
+                      onFocusIn={addMenu.onFocusIn}
                     >
                       <Show when={addSearch()}>
                         <div class="ui-search-select-search agent-dock-add-search">
                           <Search aria-hidden="true" />
                           <Input
-                            ref={(element: HTMLInputElement) => {
-                              addField = element;
-                            }}
+                            ref={addMenu.bindField}
                             class="ui-search-select-input agent-dock-add-search-input"
                             aria-label={t("agent.dock.search")}
                             placeholder={t("agent.dock.searchPlaceholder")}
@@ -1391,7 +1380,7 @@ export function AgentDock(props: AgentDockProps) {
                             spellcheck={false}
                             value={addQuery()}
                             onValueChange={searchAdd}
-                            onKeyDown={onAddSearchKey}
+                            onKeyDown={addMenu.onFieldKey}
                           />
                         </div>
                       </Show>
@@ -1503,6 +1492,7 @@ export function AgentDock(props: AgentDockProps) {
                     onSend={() => void send()}
                     onClose={() => closeChat()}
                     onRemove={() => props.onRemove(refOfKey(id))}
+                    onAdd={() => props.onAdd(refOfKey(id))}
                     onOpenInMain={() => {
                       closeChat(false);
                       props.onOpenInMain(refOfKey(id));

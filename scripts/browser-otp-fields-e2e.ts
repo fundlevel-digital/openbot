@@ -151,7 +151,7 @@ async function runWorker(): Promise<void> {
   const started = performance.now();
   const load = () => window.loadURL(`${ORIGIN}/fields`);
   const prepare = (selector: string, origin = ORIGIN) =>
-    Effect.runPromise(engine.prepareSecret([{ kind: "css", selector }], origin, "on_input"));
+    Effect.runPromise(engine.prepareSecret([{ kind: "css", selector }], origin, false, "on_input"));
   const runPage = (expression: string) => window.webContents.executeJavaScript(expression);
   try {
     await load();

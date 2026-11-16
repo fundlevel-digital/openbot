@@ -312,6 +312,7 @@ export const messages = {
   "connector.telegram.helpRelayUnavailableHost":
     "OpenBot ב-{host} לא יכול לקבל הודעות Telegram. ב-{host} יש להתחבר, לתת לשרת שם בהגדרות השרת ולהשאיר את OpenBot פתוח.",
   "connector.telegram.helpError": "OpenBot לא מצליח להגיע לצ'אט הזה. יש לחבר מחדש או לנתק את הצ'אט.",
+  "connector.telegram.helpNotLinked": 'הצ\'אט הזה לא מקושר לשרת הזה. בחרו "חיבור מחדש" כדי לקשר אותו.',
   "connector.telegram.retryAt": "Telegram ביקש מ-OpenBot להמתין. הוא ינסה שוב ב-{time}.",
   "connector.telegram.pause": "השהיה",
   "connector.telegram.resume": "המשך",
@@ -410,6 +411,9 @@ export const messages = {
   "connector.whatsapp.ownNumber": "מספר אישי",
   "connector.whatsapp.ownNumberDescription":
     "רק הצ'אט ״הודעה לעצמך״ והאנשים שאישרת יכולים לכתוב. יש לכבות עבור מספר שמיועד רק ל-OpenBot.",
+  "connector.whatsapp.workingMessage": "הודעת ״עובד על זה…״",
+  "connector.whatsapp.workingMessageDescription":
+    "OpenBot שולח אותה בזמן שהסוכן עובד, ואז מחליף אותה בתשובה. יש לכבות כדי לשלוח רק את התשובה.",
   "connector.whatsapp.orchestratorTitle": "מתזמר WhatsApp",
   "connector.whatsapp.orchestratorDescription":
     "הסוכן הזה מקבל את ההודעות ל-OpenBot מכל המספרים המקושרים שלך. הוא עונה בעצמו על הודעות קצרות, מעביר עבודה אחרת לסוכן המתאים ועונה ב-WhatsApp.",

@@ -71,8 +71,12 @@ export const messages = {
   "error.agent.copyNameFailed": "OpenBot 无法生成唯一的助手副本名称。",
   "error.agent.endpointRemoved": "该助手使用的端点已被移除，请为它选择其他模型。",
   "error.agent.turnStalled": "{provider} 已停止响应，因此 OpenBot 结束了该轮次。请重新发送消息，或选择其他模型。",
+  "error.agent.toolLoopStopped":
+    "{provider} 多次重复了一个失败的步骤，因此 OpenBot 停止了该轮次。请重新发送消息，或选择其他模型。",
   "error.agent.compactionConnectionLost":
     "助手压缩上下文时连接中断，因此任务已停止。请检查网络连接，然后发送消息以继续。",
+  "error.agent.compactionLoopStopped":
+    "{provider} 反复压缩上下文，但每次压缩后仍然太满，无法继续，因此 OpenBot 停止了这一轮。请关闭此智能体不需要的 MCP 服务器或电脑操控，然后发送一条消息。如果你或智能体更改过 {provider} 的压缩时机，请撤销该更改。",
   "error.agent.selectedGone": "所选的助手已不存在。",
   "error.agent.profileEndpointsChanged": "生成期间自定义端点发生了变更，请重试。",
   "error.agent.profileInvalid": "服务商返回了无效的资料，请试着修改提示词。",
@@ -129,6 +133,8 @@ export const messages = {
   "error.agent.mcpServerNotSaved": "该 MCP 服务器没有响应，因此未保存。{error}",
   "error.agent.mcpServerKeysMove":
     "MCP 服务器 {name} 保存着当前服务器的密钥。请让用户在“服务器设置 → MCP”中更改它的地址、命令、参数或传输方式。",
+  "error.agent.mcpServerBuiltIn":
+    "{name} 是 OpenBot 的一部分，MCP 工具无法测试、开启、关闭或移除它。用户在运行 OpenBot 的电脑上管理它：GitHub 连接在 市场、应用、GitHub，Computer Use 在 设置、Computer Use。",
   "error.agent.mcpServerUnknown": "没有名为 {name} 的 MCP 服务器。请调用 list_mcp_servers 查看名称。",
   "error.agent.screenCaptureWindowMissing": "该窗口当前未打开，请调用 list_capture_sources 获取当前窗口 ID。",
   "error.agent.screenCaptureDisplayMissing": "该显示器当前未连接，请调用 list_capture_sources 获取当前显示器 ID。",

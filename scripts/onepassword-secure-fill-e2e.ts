@@ -93,7 +93,7 @@ try {
   assert.ok(!(await readFile(stored, "utf8")).includes(token), "The stored envelope exposed the token.");
   report.checks.push("The connector persists the token only through its cipher.");
 
-  const router = passwordVaultRouter([{ prefix: "", vault: connector }]);
+  const router = passwordVaultRouter([{ prefix: "", name: "1Password", vault: connector }]);
   const list = await Effect.runPromise(router.loginsFor(origin));
   assert.deepEqual(list, [
     { id: "fixture-login", title: "Fixture sign-in", username: "fixture-user", hasOneTimePassword: true },

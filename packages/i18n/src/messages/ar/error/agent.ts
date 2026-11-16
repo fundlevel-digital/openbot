@@ -76,8 +76,12 @@ export const messages = {
   "error.agent.endpointRemoved": "أُزيلت نقطة النهاية التي استخدمها هذا الوكيل. اختر نموذجًا آخر له.",
   "error.agent.turnStalled":
     "توقّف {provider} عن الاستجابة، لذا أنهى OpenBot هذا الدور. أرسل الرسالة مرة أخرى، أو اختر نموذجًا آخر.",
+  "error.agent.toolLoopStopped":
+    "كرر {provider} خطوة فاشلة مرات كثيرة، لذلك أوقف OpenBot هذا الدور. أرسل الرسالة مرة أخرى، أو اختر نموذجًا آخر.",
   "error.agent.compactionConnectionLost":
     "توقف الاتصال أثناء ضغط الوكيل لسياقه، لذلك توقفت المهمة. تحقق من اتصالك بالإنترنت، ثم أرسل رسالة للمتابعة.",
+  "error.agent.compactionLoopStopped":
+    "ضغط {provider} السياق مرارًا، وبقي ممتلئًا جدًا في كل مرة فلم يستطع المتابعة، لذلك أوقف OpenBot هذا الدور. أوقف خوادم MCP أو استخدام الكمبيوتر التي لا يحتاجها هذا الوكيل، ثم أرسل رسالة. إذا غيّرت أنت أو الوكيل وقت ضغط {provider}، فتراجع عن هذا التغيير.",
   "error.agent.selectedGone": "لم يعد الوكيل المحدد موجودًا.",
   "error.agent.profileEndpointsChanged": "تغيّرت نقاط النهاية المخصصة أثناء الإنشاء. أعد المحاولة.",
   "error.agent.profileInvalid": "أعاد المزوّد ملفًا تعريفيًا غير صالح. جرّب تعديل المطالبة.",
@@ -139,6 +143,8 @@ export const messages = {
   "error.agent.mcpServerNotSaved": "لم يستجب خادم MCP، لذا لم يُحفظ. {error}",
   "error.agent.mcpServerKeysMove":
     "يحتفظ خادم MCP {name} بمفاتيح لخادمه الحالي. اطلب من المستخدم تغيير عنوانه أو أمره أو وسائطه أو طريقة نقله في إعدادات الخادم، MCP.",
+  "error.agent.mcpServerBuiltIn":
+    "{name} جزء من OpenBot، لذلك لا يمكن لأدوات MCP اختباره أو تشغيله أو إيقافه أو إزالته. يتحكم فيه المستخدم على الحاسوب الذي يشغّل OpenBot: اتصال GitHub في المتجر، التطبيقات، GitHub، والتحكم في الحاسوب في الإعدادات، التحكم في الحاسوب.",
   "error.agent.mcpServerUnknown": "لا يوجد خادم MCP باسم {name}. استدعِ list_mcp_servers لمعرفة الأسماء.",
   "error.agent.screenCaptureWindowMissing":
     "تلك النافذة غير مفتوحة الآن. استدعِ list_capture_sources للحصول على معرّفات النوافذ الحالية.",

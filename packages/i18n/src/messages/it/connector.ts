@@ -277,6 +277,8 @@ export const messages = {
     "OpenBot su {host} non può ricevere i messaggi di Telegram. Su {host}, accedi, dai un nome al server nelle impostazioni del server e tieni OpenBot aperto.",
   "connector.telegram.helpError":
     "OpenBot non riesce a raggiungere questa chat. Riconnettiti, oppure disconnetti la chat.",
+  "connector.telegram.helpNotLinked":
+    "Questa chat non è collegata a questo server. Seleziona Riconnetti per collegarla.",
   "connector.telegram.retryAt": "Telegram ha chiesto a OpenBot di aspettare. Nuovo tentativo alle {time}.",
   "connector.telegram.pause": "Pausa",
   "connector.telegram.resume": "Riprendi",
@@ -378,6 +380,9 @@ export const messages = {
   "connector.whatsapp.ownNumber": "Numero personale",
   "connector.whatsapp.ownNumberDescription":
     "Possono scrivere solo la tua chat «Messaggio a te stesso» e le persone che autorizzi. Disattiva per un numero solo per OpenBot.",
+  "connector.whatsapp.workingMessage": "Messaggio «Ci sto lavorando…»",
+  "connector.whatsapp.workingMessageDescription":
+    "OpenBot lo invia mentre l’agente lavora, poi lo sostituisce con la risposta. Disattiva per inviare solo la risposta.",
   "connector.whatsapp.orchestratorTitle": "WhatsApp Orchestrator",
   "connector.whatsapp.orchestratorDescription":
     "Questo agente riceve i messaggi per OpenBot da tutti i tuoi numeri collegati. Risponde da solo a quelli brevi, passa il resto all'agente giusto e risponde su WhatsApp.",

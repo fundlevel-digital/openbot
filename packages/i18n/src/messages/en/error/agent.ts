@@ -83,8 +83,12 @@ export const messages = defineMessages("error.agent", {
   "error.agent.endpointRemoved": "The endpoint this agent used was removed. Choose another model for it.",
   "error.agent.turnStalled":
     "{provider} stopped responding, so OpenBot ended this turn. Send the message again, or choose another model.",
+  "error.agent.toolLoopStopped":
+    "{provider} repeated a failed step many times, so OpenBot stopped this turn. Send the message again, or choose another model.",
   "error.agent.compactionConnectionLost":
     "The connection stopped while the agent compacted its context, so the task stopped. Check your internet connection, then send a message to continue.",
+  "error.agent.compactionLoopStopped":
+    "{provider} compacted the context again and again, and each time it stayed too full to continue, so OpenBot stopped this turn. Turn off the MCP servers or computer use that this agent does not need, then send a message. If you or the agent changed when {provider} compacts, undo that change.",
   "error.agent.selectedGone": "The selected agent no longer exists.",
   "error.agent.profileEndpointsChanged": "The custom endpoints changed while this was generating. Try again.",
   "error.agent.profileInvalid": "The provider returned an invalid profile. Try revising your prompt.",
@@ -149,6 +153,8 @@ export const messages = defineMessages("error.agent", {
   "error.agent.mcpServerNotSaved": "The MCP server did not answer, so it was not saved. {error}",
   "error.agent.mcpServerKeysMove":
     "The MCP server {name} holds keys for its current server. Ask the user to change its address, command, arguments or transport in Server settings, MCP.",
+  "error.agent.mcpServerBuiltIn":
+    "{name} is part of OpenBot, so the MCP tools cannot test, turn on or off, or remove it. The user controls it on the computer that runs OpenBot: the GitHub connection in Marketplace, Apps, GitHub, and Computer Use in Settings, Computer Use.",
   "error.agent.mcpServerUnknown": "No MCP server is named {name}. Call list_mcp_servers for the names.",
   "error.agent.screenCaptureWindowMissing":
     "That window is not open now. Call list_capture_sources to get the current window ids.",

@@ -1,3 +1,5 @@
+import { isGithubSkillId } from "@openbot/contracts/ipc";
+import { GITHUB_SKILLS_CAPABILITY } from "@openbot/contracts/team-protocol/github-skills-v1";
 import { SKILLS_ADMIN_CAPABILITY, SKILLS_ADMIN_ROUTES } from "@openbot/contracts/team-protocol/skills-admin-v1";
 import { sourceText } from "@openbot/i18n/source";
 import { runCauseEffect } from "../../backend/effect-boundary";
@@ -34,7 +36,14 @@ export async function routeSkillsAdmin(
     // skills-admin-v1 has a frozen 1,000-record list. Updated peers use skill-pages-v1 for all rows.
     if (list)
       return json(200, (await runCauseEffect(skills.listInstalled(stringField(body, "agentId")))).slice(0, 1_000));
-    if (install) return json(200, await runCauseEffect(skills.install(parseInstallSkill(body))));
+    if (install) {
+      const input = parseInstallSkill(body);
+      // A GitHub id makes the host download a repository; a client that did not negotiate
+      // `github-skills-v1` cannot ask for that.
+      if (isGithubSkillId(input.skillId) && !capabilities.has(GITHUB_SKILLS_CAPABILITY))
+        throw new HttpError(400, sourceText("error.skill.githubHostTooOld"));
+      return json(200, await runCauseEffect(skills.install(input)));
+    }
     if (uninstall) {
       await runCauseEffect(skills.uninstall(parseUninstallSkill(body)));
       return json(200, {});

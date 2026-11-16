@@ -32,6 +32,8 @@ const browser: TeamApiBrowser = {
   releaseUserControlHeldBy: unused,
   stop: unused,
   importSignIn: unused,
+  startTeach: unused,
+  stopTeach: () => [],
   startView: unused,
   dispatchViewInput: unused,
   copyViewSelection: unused,

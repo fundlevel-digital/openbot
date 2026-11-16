@@ -24,7 +24,7 @@ import { createEffect, createMemo, createSignal, onCleanup, untrack } from "soli
 import { groupAgentMessageMarkers, markOpenAgentMessages, teammateUpdateAnswers } from "../agent-message-timeline";
 import type { ConversationProps, ConversationTarget } from "../conversation-types";
 import { summarizeHostedSiteMessages } from "../hosted-site-timeline";
-import { narrationRows, placeTurnRowsByTime } from "../narration-rows";
+import { narrationRows, placeTurnRowsByTime, placeUpdatesAfterSteers } from "../narration-rows";
 import {
   expandRoutineRunGroups,
   groupRoutineRunMarkers,
@@ -34,6 +34,7 @@ import {
   routineRunTurnMessages,
   summarizeRoutineRunMessages,
 } from "../routine-run-timeline";
+import { groupSkillInstallMarkers } from "../skill-install-timeline";
 import { isTurnAnswer, lastNarration } from "../turn-steps";
 import { conversationOwnerId } from "./composer-store";
 
@@ -129,13 +130,32 @@ export function createScrollStore(deps: ScrollStoreDeps) {
   /** The agents that write in the channel now. Their text that still arrives waits until it is complete. */
   const channelWriters = createMemo(() => new Set(deps.props.channel?.workers().map((worker) => worker.id) ?? []));
   /*
+   * An agent chat can keep an answer "streaming" after its turn ends, as when a joined server misses
+   * a refresh (#5847). The chat shows that text when the agent has had no turn for a short time. A
+   * joined server sends the final copy after the turn ends, so the final copy usually comes first.
+   */
+  const [turnSettled, setTurnSettled] = createSignal(untrack(() => !deps.props.activeTurnId));
+  createEffect(
+    () => Boolean(deps.props.activeTurnId),
+    (turnActive) => {
+      if (turnActive) {
+        setTurnSettled(false);
+        return;
+      }
+      const timer = setTimeout(() => setTurnSettled(true), STALE_STREAM_MS);
+      return () => clearTimeout(timer);
+    },
+  );
+  /*
    * Only the text of a member that works waits. A view keeps the copy of an older message that it
    * loaded, so a copy loaded while it streamed can stay "streaming" after its task ends (#4846), and
    * it must not stay hidden.
    */
   const held = (message: AgentMessage): boolean =>
     heldWhileWritten(message) &&
-    (!deps.props.channel || (message.senderAgentId !== undefined && channelWriters().has(message.senderAgentId)));
+    (deps.props.channel
+      ? message.senderAgentId !== undefined && channelWriters().has(message.senderAgentId)
+      : Boolean(deps.props.activeTurnId) || !turnSettled());
   /* The quiet answers of a teammate update show under its marker, so they have no row of their own. */
   const updateAnswers = createMemo(() => teammateUpdateAnswers(deps.props.messages));
   const foldedAnswerIds = createMemo(
@@ -143,22 +163,24 @@ export function createScrollStore(deps: ScrollStoreDeps) {
   );
   const shownMessages = createMemo(() => {
     const progressUpdates = deps.props.responseStyle === "natural";
-    const channelTurnRows: AgentMessage[][] = [];
+    const turnRowsList: AgentMessage[][] = [];
     const listed = deps.props.messages.flatMap((message) => {
       if (message.kind === "thinking") {
         const rows = progressUpdates ? progressRows(message) : [];
         const showsSteps =
           message.turnId && !thinkingRowHiddenTurns().has(message.turnId) && message.items?.some((item) => item.trim());
         const turnRows = showsSteps ? [...rows, message] : rows;
-        if (!deps.props.channel) return turnRows;
-        channelTurnRows.push(turnRows);
-        return [];
+        turnRowsList.push(turnRows);
+        return deps.props.channel ? [] : turnRows;
       }
       if (message.kind === "memory-changes" && answeredTurns().has(message.turnId)) return [];
       return silentAgentAnswer(message) || foldedAnswerIds().has(message.id) ? [] : [message];
     });
-    // Members of a channel work at the same time, so each update goes where its time puts it.
-    const shown = deps.props.channel ? placeTurnRowsByTime(listed, channelTurnRows) : listed;
+    // Members of a channel work at the same time, so each update goes where its time puts it. An agent
+    // chat keeps a turn's updates together, except those written after a steer.
+    const shown = deps.props.channel
+      ? placeTurnRowsByTime(listed, turnRowsList)
+      : placeUpdatesAfterSteers(listed, turnRowsList);
     // Natural shows an agent's text once it is complete, as one bubble, while the activity line
     // names the step. A bubble that grows as the text arrives moves the chat at each line.
     const complete = progressUpdates ? shown.filter((message) => !held(message)) : shown;
@@ -206,10 +228,16 @@ export function createScrollStore(deps: ScrollStoreDeps) {
     const drawn = new Set(drawnMessages().map((message) => message.id));
     return deps.props.messages.slice(start).find((message) => drawn.has(message.id))?.id ?? null;
   });
-  /* A group of agent messages or routine runs stops at the unread divider, so the divider keeps its row. */
+  /* A group of agent messages, routine runs or skill installs stops at the unread divider, so the divider keeps its row. */
   const timelineMessages = createMemo(() => {
     const group = (messages: readonly AgentMessage[]) =>
-      groupRoutineRunMarkers(groupAgentMessageMarkers(messages, unreadBoundaryMessageId()), unreadBoundaryMessageId());
+      groupSkillInstallMarkers(
+        groupRoutineRunMarkers(
+          groupAgentMessageMarkers(messages, unreadBoundaryMessageId()),
+          unreadBoundaryMessageId(),
+        ),
+        unreadBoundaryMessageId(),
+      );
     const state = deps.props.contextState;
     const startedAt =
       state?.agentId === deps.props.agent?.id && state?.threadId === deps.props.agent?.threadId
@@ -447,10 +475,17 @@ export function createScrollStore(deps: ScrollStoreDeps) {
   };
 }
 
+/** How long an agent chat waits after a turn ends before it shows text that is still marked "streaming". */
+const STALE_STREAM_MS = 3_000;
+
 /** Agent text that the host still writes. A plan, the subagents, a card and an image show while they run. */
 function heldWhileWritten(message: AgentMessage): boolean {
   return (
-    message.author === "agent" && message.streaming === true && message.kind === "text" && !message.imageGeneration
+    message.author === "agent" &&
+    message.streaming === true &&
+    message.kind === "text" &&
+    !message.imageGeneration &&
+    !message.videoGeneration
   );
 }
 

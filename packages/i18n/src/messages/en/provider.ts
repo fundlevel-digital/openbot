@@ -178,32 +178,46 @@ export const messages = defineMessages("provider", {
   "provider.geminiKey.title": "Gemini API key",
   "provider.geminiKey.description":
     "Save a Gemini API key on this computer. A saved key is used instead of your Google account. To sign in with Google, remove the key and select Connect on the Gemini row.",
+  "provider.geminiKey.descriptionHost":
+    "Save a Gemini API key on the host. A saved key is used instead of your Google account. To sign in with Google, remove the key and select Connect on the Gemini row.",
   "provider.geminiKey.label": "Gemini API key",
   "provider.claudeKey.title": "Anthropic API key",
   "provider.claudeKey.description":
     "Save an Anthropic API key on the host. Anthropic bills each request to the key's API credit, not to your Claude plan. To use it for an agent, select the API key account in the agent's model menu. When Claude is not signed in, all agents use the key.",
   "provider.claudeKey.label": "Anthropic API key",
-  "provider.cursorKey.title": "Cursor API key",
-  "provider.cursorKey.description":
+  "provider.cursorSignInKey.title": "Cursor API key",
+  "provider.cursorSignInKey.description":
     "Cursor signs in with this key instead of the browser sign-in. Make one in the Cursor dashboard, under Integrations. Cursor bills the requests to the key's account.",
-  "provider.cursorKey.label": "Cursor API key",
+  "provider.cursorSignInKey.label": "Cursor API key",
   "provider.codexKey.title": "Log in with an OpenAI API key",
   "provider.codexKey.description":
     "Codex saves the key on this computer. OpenAI bills each request to the key, not to your ChatGPT plan. To use the plan again, disconnect the account and connect ChatGPT.",
   "provider.codexKey.descriptionHost":
     "Codex saves the key on the host. OpenAI bills each request to the key, not to your ChatGPT plan. To use the plan again, disconnect the account and connect ChatGPT.",
   "provider.codexKey.label": "OpenAI API key",
+  "provider.cursorKey.title": "Cursor API key",
+  "provider.cursorKey.description":
+    "Each Cursor account after the first uses an API key. Make a key in the Cursor dashboard, under Integrations, and paste it here. The key is saved on this computer.",
+  "provider.cursorKey.descriptionHost":
+    "Each Cursor account after the first uses an API key. Make a key in the Cursor dashboard, under Integrations, and paste it here. The key is saved on the host.",
+  "provider.cursorKey.label": "Cursor API key",
   "provider.inceptionKey.title": "Inception API key",
   "provider.inceptionKey.description":
     "Save an Inception API key on this computer to use the Mercury models. OpenBot runs them in the Pi CLI that it downloads.",
+  "provider.inceptionKey.descriptionHost":
+    "Save an Inception API key on the host to use the Mercury models. OpenBot runs them in the Pi CLI that it downloads.",
   "provider.inceptionKey.label": "Inception API key",
   "provider.deepseekKey.title": "DeepSeek API key",
   "provider.deepseekKey.description":
     "Save a DeepSeek API key on this computer to use the DeepSeek models. OpenBot runs them in the Pi CLI that it downloads.",
+  "provider.deepseekKey.descriptionHost":
+    "Save a DeepSeek API key on the host to use the DeepSeek models. OpenBot runs them in the Pi CLI that it downloads.",
   "provider.deepseekKey.label": "DeepSeek API key",
   "provider.openrouterKey.title": "OpenRouter API key",
   "provider.openrouterKey.description":
     "Save an OpenRouter API key on this computer to use the models that OpenRouter serves. OpenBot runs them in the Pi CLI that it downloads.",
+  "provider.openrouterKey.descriptionHost":
+    "Save an OpenRouter API key on the host to use the models that OpenRouter serves. OpenBot runs them in the Pi CLI that it downloads.",
   "provider.openrouterKey.label": "OpenRouter API key",
 
   // The optional OpenCode Go key dialog.
@@ -248,6 +262,16 @@ export const messages = defineMessages("provider", {
   "provider.account.resetUsageNoCredit": "{name} has no usage reset credits left.",
   "provider.account.resetUsageAlreadyRedeemed": "This reset credit of {name} was already used.",
   "provider.account.resetUsageFailed": "Could not reset the usage of {name}.",
+  "provider.account.pool": "Pool accounts",
+  "provider.account.poolDescription":
+    "Agents use one account until it nears a usage limit, then the account whose limit resets first.",
+  "provider.account.inUse": "In use",
+  "provider.account.notInPool": "Not in pool",
+  "provider.account.leaveOutOfPool": "Leave out of pool",
+  "provider.account.putBackInPool": "Put back in pool",
+  "provider.account.poolChip": "Pool",
+  "provider.account.poolCount": "Pool of {accounts}",
+  "provider.account.poolInUse": "{pool} · {name} in use",
 
   // Settings > Providers: a list of providers, and one page for each provider.
   "provider.settings.connected": "Connected",
@@ -271,6 +295,7 @@ export const messages = defineMessages("provider", {
   "provider.settings.defaultSubtitle": "Default for new agents · {use}",
   "provider.settings.accounts": "Accounts",
   "provider.settings.accountsDescription": "{count} of {max}. Each agent uses one account.",
+  "provider.settings.accountsPooledDescription": "{count} of {max}. Agents share these accounts.",
   "provider.settings.accountBlocked": "{agents} cannot run until you sign in again.",
   "provider.settings.removeTitle": "Remove {name}?",
   "provider.settings.removeMoves": "{agents} will use {name}.",
@@ -290,6 +315,8 @@ export const messages = defineMessages("provider", {
   "provider.settings.keyOptional": "Optional. A key adds paid models.",
   "provider.settings.keyAlternative": "Or paste a {name} API key.",
   "provider.settings.geminiKeyInUse": "Gemini uses this key, not your Google AI plan. The plan's usage is not shown.",
+  "provider.settings.geminiKeyReplacesAccount":
+    "A saved Gemini API key is used instead of a Google sign-in. To use a Google plan and its models, remove the key.",
   "provider.settings.claudeKeyInUse":
     "Anthropic bills the key's API credit, not your Claude plan. Select the API key account in an agent's model menu. When Claude is not signed in, all agents use the key.",
   "provider.settings.codexKeyInUse":
@@ -302,6 +329,10 @@ export const messages = defineMessages("provider", {
   "provider.settings.versionAvailable": "{installed} · {available} is available",
   "provider.settings.versionInstalledByUser": "{version} · installed by you",
   "provider.settings.versionDownloaded": "{version} · downloaded by OpenBot",
+  "provider.settings.otherVersionInstalledByUser": "Not in use: {version} · installed by you",
+  "provider.settings.otherVersionDownloaded": "Not in use: {version} · downloaded by OpenBot",
+  "provider.settings.useInstalledVersion": "Use installed version",
+  "provider.settings.useDownloadedVersion": "Use OpenBot's version",
   "provider.settings.update": "Update",
   "provider.settings.downloadLabel": "Download of {name}",
   "provider.settings.diagnostics": "Diagnostics",
@@ -354,4 +385,6 @@ export const messages = defineMessages("provider", {
   "provider.settings.endpoints": "Endpoints",
   "provider.settings.noEndpoints": "No endpoints.",
   "provider.settings.endpointModels": { one: "{url} · 1 model", other: "{url} · {count} models" },
+  "provider.settings.disconnectLocalOnly":
+    "OpenBot signs {provider} out on this computer. The {provider} CLI in your terminal keeps its own sign-in.",
 });

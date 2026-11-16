@@ -77,8 +77,12 @@ export const messages = {
   "error.agent.endpointRemoved": "נקודת הקצה שהסוכן הזה השתמש בה הוסרה. יש לבחור עבורו מודל אחר.",
   "error.agent.turnStalled":
     "{provider} הפסיק להגיב, ולכן OpenBot סיים את התור הזה. יש לשלוח את ההודעה שוב, או לבחור מודל אחר.",
+  "error.agent.toolLoopStopped":
+    "{provider} חזר על שלב שנכשל פעמים רבות, ולכן OpenBot עצר את התור הזה. שלחו את ההודעה שוב, או בחרו מודל אחר.",
   "error.agent.compactionConnectionLost":
     "החיבור נפסק בזמן שהסוכן כיווץ את ההקשר שלו, ולכן המשימה נעצרה. יש לבדוק את חיבור האינטרנט ולשלוח הודעה כדי להמשיך.",
+  "error.agent.compactionLoopStopped":
+    "{provider} דחס את ההקשר שוב ושוב, ובכל פעם הוא נשאר מלא מדי כדי להמשיך, ולכן OpenBot עצר את התור הזה. כבה את שרתי ה-MCP או את השימוש במחשב שהסוכן הזה לא צריך, ואז שלח הודעה. אם אתה או הסוכן שיניתם מתי {provider} דוחס, בטל את השינוי.",
   "error.agent.selectedGone": "הסוכן שנבחר כבר לא קיים.",
   "error.agent.profileEndpointsChanged": "נקודות הקצה המותאמות השתנו בזמן היצירה. יש לנסות שוב.",
   "error.agent.profileInvalid": "הספק החזיר פרופיל לא תקין. יש לנסות לשנות את ההנחיה.",
@@ -138,6 +142,8 @@ export const messages = {
   "error.agent.mcpServerNotSaved": "שרת ה-MCP לא הגיב, ולכן לא נשמר. {error}",
   "error.agent.mcpServerKeysMove":
     "שרת ה-MCP {name} מחזיק מפתחות עבור השרת הנוכחי שלו. יש לבקש מהמשתמש לשנות את הכתובת, הפקודה, הארגומנטים או שיטת ההעברה שלו בהגדרות השרת, MCP.",
+  "error.agent.mcpServerBuiltIn":
+    "{name} הוא חלק מ-OpenBot, ולכן כלי ה-MCP לא יכולים לבדוק, להפעיל, לכבות או להסיר אותו. המשתמש שולט בו במחשב שמריץ את OpenBot: חיבור GitHub בחנות, אפליקציות, GitHub, ושליטה במחשב בהגדרות, שליטה במחשב.",
   "error.agent.mcpServerUnknown": "אין שרת MCP בשם {name}. אפשר לקרוא ל-list_mcp_servers כדי לראות את השמות.",
   "error.agent.screenCaptureWindowMissing":
     "החלון הזה אינו פתוח כעת. יש לקרוא ל-list_capture_sources כדי לקבל את מזהי החלונות הנוכחיים.",

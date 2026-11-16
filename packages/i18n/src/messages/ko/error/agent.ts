@@ -82,8 +82,12 @@ export const messages = {
   "error.agent.endpointRemoved": "이 에이전트가 사용하던 엔드포인트가 제거되었어요. 다른 모델을 선택해 주세요.",
   "error.agent.turnStalled":
     "{provider}이(가) 응답하지 않아 OpenBot이 이 턴을 종료했어요. 메시지를 다시 보내거나 다른 모델을 선택해 주세요.",
+  "error.agent.toolLoopStopped":
+    "{provider}이(가) 실패한 단계를 여러 번 반복해서 OpenBot이 이 턴을 중지했습니다. 메시지를 다시 보내거나 다른 모델을 선택하세요.",
   "error.agent.compactionConnectionLost":
     "에이전트가 컨텍스트를 압축하는 동안 연결이 끊겨 작업이 멈췄어요. 인터넷 연결을 확인한 다음 메시지를 보내 계속해 주세요.",
+  "error.agent.compactionLoopStopped":
+    "{provider}이(가) 컨텍스트를 계속 압축했지만 매번 너무 가득 차 있어 계속할 수 없어서 OpenBot이 이 턴을 중지했습니다. 이 에이전트에 필요 없는 MCP 서버나 컴퓨터 사용을 끈 다음 메시지를 보내세요. 사용자나 에이전트가 {provider}의 압축 시점을 바꿨다면 그 변경을 되돌리세요.",
   "error.agent.selectedGone": "선택한 에이전트가 더 이상 없어요.",
   "error.agent.profileEndpointsChanged": "생성하는 동안 사용자 지정 엔드포인트가 변경되었어요. 다시 시도해 주세요.",
   "error.agent.profileInvalid": "제공자가 올바르지 않은 프로필을 반환했어요. 프롬프트를 수정해 보세요.",
@@ -147,6 +151,8 @@ export const messages = {
   "error.agent.mcpServerNotSaved": "MCP 서버가 응답하지 않아 저장하지 않았어요. {error}",
   "error.agent.mcpServerKeysMove":
     "MCP 서버 {name}에는 현재 서버용 키가 있어요. 사용자에게 서버 설정의 MCP에서 주소, 명령, 인수 또는 전송 방식을 변경해 달라고 요청하세요.",
+  "error.agent.mcpServerBuiltIn":
+    "{name}은(는) OpenBot의 일부라서 MCP 도구로 테스트하거나 켜고 끄거나 제거할 수 없어요. 사용자가 OpenBot을 실행하는 컴퓨터에서 관리해요. GitHub 연결은 마켓플레이스, 앱, GitHub에서, 컴퓨터 제어는 설정, 컴퓨터 제어에서 관리해요.",
   "error.agent.mcpServerUnknown": "{name}(이)라는 MCP 서버가 없어요. list_mcp_servers를 호출해 이름을 확인하세요.",
   "error.agent.screenCaptureWindowMissing":
     "해당 창이 지금 열려 있지 않아요. list_capture_sources를 호출해 현재 창 ID를 확인하세요.",

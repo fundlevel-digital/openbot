@@ -9,7 +9,15 @@ import { parseRemoveMcpServer, parseSaveMcpServer, parseSetMcpServerEnabled } fr
 import type { McpToolRuntimePreparation } from "../ipc/mcp-server-handlers";
 import type { TeamApiMcpServerOwners, TeamApiMcpServers, TeamApiMcpSignIns } from "./dependencies";
 import { HttpError } from "./http-error";
-import { requireMcpAccess, requireOwnMcpServer, requireOwnMcpSignIn } from "./mcp-member-access";
+import {
+  requireMcpAccess,
+  requireOwnMcpServer,
+  requireOwnMcpSignIn,
+  requireVisibleMcpAddress,
+  seesMcpAddress,
+  seesMcpServer,
+  visibleMcpServers,
+} from "./mcp-member-access";
 import type { RouteOutcome, TeamApiRequestContext } from "./request-context";
 import { readJson, stringField } from "./request-helpers";
 
@@ -38,7 +46,9 @@ function page<T>(items: readonly T[], cursor: string | null, id: (item: T) => st
 /**
  * Writes return no collection; clients read the complete result through pages. The access is that of
  * the `mcp-v1` routes: an administrator, or with `mcp-member-access-v1` a member, who changes or removes
- * only a server that the member added.
+ * only a server that the member added. With `mcp-access-v1`, a member does not read a row at `none`,
+ * or the sign-in state of an address that such a row uses, as in `route-mcp.ts` and
+ * `route-mcp-sign-in.ts`.
  */
 export async function routeMcpServerPages(
   context: TeamApiRequestContext,
@@ -55,20 +65,29 @@ export async function routeMcpServerPages(
   const body = await readJson(request);
   if (url.pathname === MCP_PAGES_ROUTES.list || url.pathname === MCP_PAGES_ROUTES.signIns) {
     const cursor = body.cursor === null ? null : stringField(body, "cursor", false, 128);
-    return url.pathname === MCP_PAGES_ROUTES.list
-      ? json(
-          200,
-          page(mcpServers.listMcpServers(), cursor, (item) => item.id),
-        )
-      : json(
-          200,
-          page(signIns?.list() ?? [], cursor, (item) => item.mcpServerId),
-        );
+    const rows = mcpServers.listMcpServers();
+    if (url.pathname === MCP_PAGES_ROUTES.list)
+      return json(
+        200,
+        page(visibleMcpServers(access, rows), cursor, (item) => item.id),
+      );
+    const urls = new Map(rows.map((row) => [row.id, row.transport === "http" ? row.url : null]));
+    const states = (signIns?.list() ?? []).filter((state) => {
+      const address = urls.get(state.mcpServerId);
+      return seesMcpServer(access, state.mcpServerId) && (!address || seesMcpAddress(access, rows, address));
+    });
+    return json(
+      200,
+      page(states, cursor, (item) => item.mcpServerId),
+    );
   }
   if (url.pathname === MCP_PAGES_ROUTES.save) {
     const input = parseSaveMcpServer(body);
-    const before = new Set(mcpServers.listMcpServers().map((server) => server.id));
+    const rows = mcpServers.listMcpServers();
+    const before = new Set(rows.map((server) => server.id));
     if (before.has(input.config.id)) requireOwnMcpServer(access, input.config.id);
+    // A saved row on the address would use its stored sign-in, so `none` on the address refuses it.
+    if (input.config.transport === "http") requireVisibleMcpAddress(access, rows, input.config.url);
     toolRuntimes?.startToolRuntimes();
     const saved = await runCauseEffect(mcpServers.saveMcpServer(input));
     // The new row is the one the list did not have, by its name, as in the `mcp-v1` save.
