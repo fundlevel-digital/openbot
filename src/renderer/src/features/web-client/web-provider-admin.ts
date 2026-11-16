@@ -13,7 +13,6 @@ import { decodeRegistryEntries, decodeRegistryInstallResult, decodeRegistryOpera
 import { ACP_REGISTRY_ROUTES } from "@openbot/contracts/team-protocol/acp-registry-v1";
 import { CLAUDE_API_KEY_CAPABILITY } from "@openbot/contracts/team-protocol/claude-api-key-v1";
 import { CODEX_API_KEY_CAPABILITY } from "@openbot/contracts/team-protocol/codex-api-key-v1";
-import { CURSOR_API_KEY_CAPABILITY } from "@openbot/contracts/team-protocol/cursor-api-key-v1";
 import { CUSTOM_AGENTS_CAPABILITY } from "@openbot/contracts/team-protocol/custom-agents-v1";
 import {
   CUSTOM_PROVIDER_EDIT_CAPABILITY,
@@ -439,7 +438,6 @@ export function createWebProviderSettings(options: WebProviderSettingsOptions) {
   // A boolean, so that a server-list update that keeps the capability does not rebuild the keys.
   const readsClaudeKey = createMemo(() => serverSupportsCapability(options.server(), CLAUDE_API_KEY_CAPABILITY));
   const readsCodexKey = createMemo(() => serverSupportsCapability(options.server(), CODEX_API_KEY_CAPABILITY));
-  const readsCursorKey = createMemo(() => serverSupportsCapability(options.server(), CURSOR_API_KEY_CAPABILITY));
   const providerKeys = createMemo(() => {
     const id = serverId();
     if (!id) return undefined;
@@ -448,7 +446,6 @@ export function createWebProviderSettings(options: WebProviderSettingsOptions) {
       ...api,
       readsClaudeKey: readsClaudeKey(),
       readsCodexKey: readsCodexKey(),
-      readsCursorKey: readsCursorKey(),
       setProviderApiKey: async (input: { provider: AgentProviderId; key: string }) => {
         const result = await api.setProviderApiKey(input);
         // The host downloads Pi for the key when it has none, and sends no event for it.

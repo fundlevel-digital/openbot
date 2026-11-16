@@ -185,10 +185,6 @@ export const messages = defineMessages("provider", {
   "provider.claudeKey.description":
     "Save an Anthropic API key on the host. Anthropic bills each request to the key's API credit, not to your Claude plan. To use it for an agent, select the API key account in the agent's model menu. When Claude is not signed in, all agents use the key.",
   "provider.claudeKey.label": "Anthropic API key",
-  "provider.cursorSignInKey.title": "Cursor API key",
-  "provider.cursorSignInKey.description":
-    "Cursor signs in with this key instead of the browser sign-in. Make one in the Cursor dashboard, under Integrations. Cursor bills the requests to the key's account.",
-  "provider.cursorSignInKey.label": "Cursor API key",
   "provider.codexKey.title": "Log in with an OpenAI API key",
   "provider.codexKey.description":
     "Codex saves the key on this computer. OpenAI bills each request to the key, not to your ChatGPT plan. To use the plan again, disconnect the account and connect ChatGPT.",

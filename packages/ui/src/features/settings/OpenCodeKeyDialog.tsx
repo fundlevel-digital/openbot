@@ -60,12 +60,6 @@ const KEY_TEXT = {
     description: "provider.claudeKey.description",
     label: "provider.claudeKey.label",
   },
-  cursor: {
-    name: "Cursor",
-    title: "provider.cursorSignInKey.title",
-    description: "provider.cursorSignInKey.description",
-    label: "provider.cursorSignInKey.label",
-  },
   codex: {
     name: "OpenAI",
     title: "provider.codexKey.title",
@@ -125,11 +119,6 @@ export interface ProviderKeyApi {
    * `codex-api-key-v1`. An older host stores the key and never reads it.
    */
   readsCodexKey?: boolean | undefined;
-  /**
-   * Whether the host gives a saved Cursor key to the Cursor CLI: this computer, or a joined server with
-   * `cursor-api-key-v1`. An older host stores the key and never reads it.
-   */
-  readsCursorKey?: boolean | undefined;
   /** Whether the key goes to the host of a joined server, not to this computer. */
   onHost?: boolean | undefined;
   getProviderApiKeyState: (provider: AgentProviderId) => Promise<ProviderApiKeyState>;

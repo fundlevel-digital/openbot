@@ -221,17 +221,6 @@ const CLAUDE_SIGN_IN: ProviderCliCommand = {
 };
 
 /**
- * A Cursor key saved in OpenBot, for the Cursor CLI of the first account. A key in the user's
- * environment applies without it. An added Cursor account has its own key in `accountEnvironment`,
- * and this key does not replace it.
- */
-function cursorKeyEnv(context: ProviderClientContext): Record<string, string> {
-  if (context.accountEnvironment) return {};
-  const key = context.apiKey("cursor");
-  return key ? { CURSOR_API_KEY: key } : {};
-}
-
-/**
  * The environment one OpenCode process gets, read at spawn time.
  *
  * The stored key goes only to the `opencode-go` provider, in `openCodeConfigEnv`. OpenCode reads
@@ -1274,8 +1263,8 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
   },
   {
     id: "cursor",
-    // `cursor_login` opens the Cursor sign-in page from the server. `CURSOR_API_KEY` signs the CLI in
-    // without it: a key saved in OpenBot (`cursor-api-key-v1`), else one in the user's environment.
+    // `cursor_login` opens the Cursor sign-in page from the server. `CURSOR_API_KEY` in the user's
+    // environment signs the CLI in without it.
     signIn: { kind: "acp-authenticate", methodId: "cursor_login", argv: ["acp"], timeoutMs: CLI_LOGIN_TIMEOUT_MS },
     // With `NO_OPEN_BROWSER`, `login` prints the sign-in link and waits until the page signs it in.
     // The ACP `cursor_login` method gives up instead when it cannot open a browser.
@@ -1307,7 +1296,6 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
         extraEnv: () => ({
           ...context.agentEnvironment?.(),
           ...(confinement ? cursorConfinedEnv() : {}),
-          ...cursorKeyEnv(context),
           ...context.accountEnvironment,
         }),
         signInMessage: sourceText("error.provider.cursorSignIn"),
@@ -1332,7 +1320,7 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
         argv: ["acp"],
         profileGeneration: true,
         env: {},
-        extraEnv: () => ({ ...cursorKeyEnv(context), ...context.accountEnvironment }),
+        ...(context.accountEnvironment ? { extraEnv: () => ({ ...context.accountEnvironment }) } : {}),
         signInMessage: sourceText("error.provider.cursorSignIn"),
         servesModel: context.servesModel,
       }),

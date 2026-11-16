@@ -118,6 +118,16 @@ workflow, and complete the upgrade audit before publishing the next numeric desk
 Do not point this branch at the repository-wide latest release, move the other application's
 default branch, or publish desktop packages under its version tags.
 
+## Fork patches replaced by upstream
+
+On 2026-11-16 the owner decided to use upstream's version of these fork patches after the v0.71.0
+merge (rule "Upstream overlap check" in `AGENTS.md`). The branch no longer has the fork patch.
+
+- The saved Cursor API key of the first account (`cursor-api-key-v1`, fork commit `33370f72c5`).
+  Upstream #8843 adds each Cursor account after the first from an API key. A host or client that
+  still names `cursor-api-key-v1` is not refused: the host ignores an unknown capability, and a
+  client accepts any capability name that a host lists.
+
 ## Known exceptions
 
 - Channel routines: from upstream v0.71.0 (#6077), a scheduled tick does not start a run while an
