@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
-import { webContents } from "electron";
+import { type WebContents, webContents } from "electron";
 import * as webSockets from "ws";
 import { z } from "zod";
 import type { BrowserHost } from "../src/backend/browser-host";
@@ -27,6 +27,25 @@ function payload(result: DynamicToolResult) {
   return z.record(z.string(), z.json()).parse(JSON.parse(item.text));
 }
 
+/**
+ * Wait until the shown tab draws a frame. On a fresh xvfb display the first Electron process runs no
+ * animation frame for several seconds, and Chromium drops each mouse event in that time with no
+ * error. Fork debug run 43922655446 showed no frame 1.2 seconds after `connect_cdp` and a failed
+ * `capturePage`; the click landed only after the first frame. Run 43920457504 clicked about five
+ * seconds after start and lost the click. A later Electron process in the same job draws at once.
+ */
+async function waitForFirstFrame(contents: WebContents): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const framed = await contents.executeJavaScript(
+      "Promise.race([new Promise((resolve) => requestAnimationFrame(() => resolve(true))), new Promise((resolve) => setTimeout(() => resolve(false), 500))])",
+      true,
+    );
+    if (framed === true) return;
+  }
+  throw new Error("The CDP fixture tab never drew a frame, so it cannot receive a mouse event.");
+}
+
 function endpointOf(result: DynamicToolResult): string {
   const endpoint = payload(result).endpoint;
   assert.ok(isString(endpoint));
@@ -37,7 +56,10 @@ function endpointOf(result: DynamicToolResult): string {
 export async function runCdpBridgeScenario(browser: BrowserHost, origin: string): Promise<void> {
   const checks: string[] = [];
   const session = `openbot-smoke-${randomUUID()}`;
+  const existingContents = new Set(webContents.getAllWebContents().map((entry) => entry.id));
   const tab = await runCauseEffect(browser.open(`${origin}/cdp-fixture`, "cdp-thread", "cdp-agent"));
+  const tabContents = webContents.getAllWebContents().find((entry) => !existingContents.has(entry.id));
+  assert.ok(tabContents, "The CDP fixture tab has its own contents.");
   const other = await runCauseEffect(browser.open(`${origin}/cdp-fixture`, "other-thread", "other-agent"));
   const params: DynamicToolCallParams = {
     namespace: "openbot_browser",
@@ -73,6 +95,7 @@ export async function runCdpBridgeScenario(browser: BrowserHost, origin: string)
     checks.push("another agent cannot obtain the endpoint");
     const connection = payload(await call("connect_cdp"));
     assert.equal(browser.activeTabId, tab.id, "External CDP selects the requested existing tab.");
+    await waitForFirstFrame(tabContents);
     endpoint = z.string().parse(connection.endpoint);
     const registrationUrl = z.string().parse(connection.secretRegistrationUrl);
     // Each fixture has its own session; write the marker through the selected CDP endpoint below.
@@ -161,10 +184,6 @@ export async function runCdpBridgeScenario(browser: BrowserHost, origin: string)
     const cookies = await cli("eval", "document.cookie");
     assert.ok(!cookies.includes("fixture-cdp-cookie-591627") && cookies.includes("[redacted]"));
     await cli("click", "#increment");
-    // The click can return before the page handles the input, as on a Linux runner under xvfb (run
-    // 43905915165 read "0"). Wait for the page state with agent-browser's own bounded wait; a click
-    // that never reaches the button still fails here.
-    await cli("wait", "--fn", "document.querySelector('#count').textContent === '1'");
     const count = await cli("get", "text", "#count");
     assert.ok(count.includes("1"), `agent-browser must read the updated fixture count: ${count}`);
     checks.push("real agent-browser preserves page storage and cookies and clicks the existing tab");
