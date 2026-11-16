@@ -1,7 +1,13 @@
 // @vitest-environment node
 
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
-import type { BrowserDockPresentation } from "@openbot/contracts/ipc";
+import {
+  BROWSER_DOCK_LIMITS,
+  type BrowserDockPresentation,
+  decodeMcpServerConfigs,
+  decodeMcpSignInStates,
+  MCP_SERVER_LIST_DECODE_LIMIT,
+} from "@openbot/contracts/ipc";
 import { describe, expect, it } from "vitest";
 import {
   decodeBrowserDockAction,
@@ -102,6 +108,55 @@ describe("browser dock decoding", () => {
     expect(() =>
       decodeBrowserDockPresentation({ ...PRESENTATION, draft: { text: "x".repeat(1_000_000), revision: 0 } }),
     ).toThrow("Invalid browser dock presentation.");
+  });
+
+  // This branch stores any number of skills and MCP servers, but a list from another process still has
+  // a bound, so main and the preload validate a fixed amount of work.
+  it("bounds the skills and MCP servers of a presentation", () => {
+    const skill = { skillId: "skill", slug: "skill", name: "Skill", state: "installed" };
+    const server = PRESENTATION.mcpServers[0];
+    const skills = (count: number) => Array.from({ length: count }, (_, index) => ({ ...skill, skillId: `s${index}` }));
+    const servers = (count: number) => Array.from({ length: count }, (_, index) => ({ ...server, id: `m${index}` }));
+    expect(
+      decodeBrowserDockPresentation({ ...PRESENTATION, skills: skills(BROWSER_DOCK_LIMITS.skills) })?.skills,
+    ).toHaveLength(BROWSER_DOCK_LIMITS.skills);
+    expect(
+      decodeBrowserDockPresentation({ ...PRESENTATION, mcpServers: servers(BROWSER_DOCK_LIMITS.mcpServers) })
+        ?.mcpServers,
+    ).toHaveLength(BROWSER_DOCK_LIMITS.mcpServers);
+    expect(() =>
+      decodeBrowserDockPresentation({ ...PRESENTATION, skills: skills(BROWSER_DOCK_LIMITS.skills + 1) }),
+    ).toThrow("Invalid browser dock presentation.");
+    expect(() =>
+      decodeBrowserDockPresentation({ ...PRESENTATION, mcpServers: servers(BROWSER_DOCK_LIMITS.mcpServers + 1) }),
+    ).toThrow("Invalid browser dock presentation.");
+  });
+
+  it("bounds the MCP server and sign-in lists that the preload decodes", () => {
+    const config = {
+      id: "mcp",
+      name: "Files",
+      transport: "stdio",
+      enabled: true,
+      command: "files",
+      args: [],
+      env: [],
+      envPassthrough: [],
+      workingDirectory: "",
+      url: "",
+      headers: [],
+    };
+    const configs = (count: number) => Array.from({ length: count }, (_, index) => ({ ...config, id: `m${index}` }));
+    const states = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({ mcpServerId: `m${index}`, signedIn: false }));
+    expect(decodeMcpServerConfigs(configs(MCP_SERVER_LIST_DECODE_LIMIT))).toHaveLength(MCP_SERVER_LIST_DECODE_LIMIT);
+    expect(decodeMcpSignInStates(states(MCP_SERVER_LIST_DECODE_LIMIT))).toHaveLength(MCP_SERVER_LIST_DECODE_LIMIT);
+    expect(() => decodeMcpServerConfigs(configs(MCP_SERVER_LIST_DECODE_LIMIT + 1))).toThrow(
+      "Invalid MCP server response.",
+    );
+    expect(() => decodeMcpSignInStates(states(MCP_SERVER_LIST_DECODE_LIMIT + 1))).toThrow(
+      "Invalid MCP server response.",
+    );
   });
 
   it("accepts the known actions and rejects the others", () => {

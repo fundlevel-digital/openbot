@@ -12,6 +12,16 @@
  */
 
 import { INPUT_LIMITS } from "./input-limits";
+
+/**
+ * The most MCP rows or sign-in states that one decoded list can have. This branch stores any number of
+ * MCP servers, so the released bound (`INPUT_LIMITS.mcpServers`) is too small for the local list. A
+ * list still has a bound: a value from another process is validated with a fixed amount of work. A Team
+ * API list carries at most 100 rows (`mcp-many-servers-v1`) and a page 32, so only the local list can
+ * come near this bound.
+ */
+export const MCP_SERVER_LIST_DECODE_LIMIT = 10_000;
+
 import { isBoolean, isDynamicRecord, isNumber, isOneOf, isString } from "./runtime-values";
 
 /**
@@ -287,7 +297,8 @@ export function isMcpTestResult(value: unknown): value is McpTestResult {
 }
 
 export function decodeMcpServerConfigs(value: unknown): McpServerConfig[] {
-  if (!Array.isArray(value) || !value.every(isMcpServerConfig)) throw new Error("Invalid MCP server response.");
+  if (!Array.isArray(value) || value.length > MCP_SERVER_LIST_DECODE_LIMIT || !value.every(isMcpServerConfig))
+    throw new Error("Invalid MCP server response.");
   return value;
 }
 
@@ -297,7 +308,8 @@ export function decodeMcpTestResult(value: unknown): McpTestResult {
 }
 
 export function decodeMcpSignInStates(value: unknown): McpSignInState[] {
-  if (!Array.isArray(value) || !value.every(isMcpSignInState)) throw new Error("Invalid MCP server response.");
+  if (!Array.isArray(value) || value.length > MCP_SERVER_LIST_DECODE_LIMIT || !value.every(isMcpSignInState))
+    throw new Error("Invalid MCP server response.");
   return value;
 }
 
