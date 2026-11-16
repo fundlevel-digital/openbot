@@ -64,6 +64,7 @@ jobs:
           bun scripts/browser-takeover-steer-e2e.ts
           bun scripts/steer-history-e2e.ts
           bun scripts/desktop-feed-e2e.ts
+          bun scripts/new-agent-browser-profile-e2e.ts
           bash -n scripts/install-server.sh scripts/hosting/openbot-hosted-update
       - name: Install browser test display
         run: |
@@ -128,6 +129,7 @@ jobs:
             .openbot-build/browser-takeover-steer-e2e/report.json
             .openbot-build/steer-history-e2e/report.json
             .openbot-build/desktop-feed-e2e.json
+            .openbot-build/new-agent-browser-profile-e2e/report.json
             .openbot-build/browser-cdp-bridge/smoke.json
             .openbot-build/browser-secret/smoke.json
             .openbot-build/browser-user-control-e2e/report.json
