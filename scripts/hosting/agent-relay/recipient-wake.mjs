@@ -30,8 +30,9 @@
 //
 // A route waits, without failing the others, in these states: `waiting_for_credential` (no verified
 // relay credential), `waiting_for_local_scripts` (the automation server does not show the agent:
-// "Local scripts" is off or the agent is hidden) and `agent_hidden` (the server refused a hidden
-// agent). It checks again at each reload interval. A delivery goes into the ledger only after the
+// "Local scripts" is off, or, on a host before v0.71.0, the agent is hidden) and `agent_hidden` (a
+// host before v0.71.0 refused a hidden agent with 409; from v0.71.0 a hidden agent takes work and is
+// woken). It checks again at each reload interval. A delivery goes into the ledger only after the
 // target accepted it.
 //
 // Only an explicit test run can use plain HTTP: `OPENBOT_AGENT_RELAY_TEST_LOOPBACK=1` permits
@@ -367,7 +368,8 @@ async function automationRequest(settings, pathname, init = {}) {
 }
 
 /**
- * The agent IDs that the automation server shows: "Local scripts" is on and the agent is not hidden.
+ * The agent IDs that the automation server shows: "Local scripts" is on. A host before v0.71.0 also
+ * leaves out a hidden agent; from v0.71.0 the server lists it.
  * Null when the server does not answer; the caller then keeps what it knew before.
  */
 export async function automationAgents(settings) {
@@ -391,6 +393,7 @@ export async function automationAgents(settings) {
 function automationOutcome(status, transport) {
   if (status === 202) return;
   if (status === 403) throw new WakeRefused("waiting_for_local_scripts", "automation_local_scripts_off");
+  // A host before v0.71.0 answers 409 for a hidden agent. From v0.71.0 a hidden agent takes work.
   if (status === 409 && transport === "message") throw new WakeRefused("agent_hidden", "automation_agent_hidden");
   if (status === 404)
     throw new WakeRefused(

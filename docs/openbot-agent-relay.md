@@ -220,7 +220,7 @@ it to the route file with `--apply`.
 | `registering` | The socket is open and the register reply did not come yet. |
 | `waiting_for_credential` | The agent has no verified relay credential yet. |
 | `waiting_for_local_scripts` | "Local scripts" is off for the agent. The listener holds no socket; deliveries stay in the relay queue. |
-| `agent_hidden` | The agent is hidden in OpenBot and takes no new work. |
+| `agent_hidden` | A host before v0.71.0 refused the wake (409) because the agent is hidden. From v0.71.0 a hidden agent takes work, and the host does not give this answer. |
 | `reconnecting` | The socket closed. The listener connects again with backoff. |
 
 Limits:
@@ -229,7 +229,11 @@ Limits:
   that cannot be woken in that hour does not get that delivery in its inbox.
 - The automation server permits 30 requests an hour for each agent (the account default). More
   deliveries in one hour wait.
-- A hidden agent takes no wake until a person restores it.
+- From OpenBot v0.71.0 (upstream #7825), a hidden agent takes work: the automation server lists
+  it, and it gets messages and routine runs. A wake therefore reaches a hidden agent. To keep a
+  hidden agent from being woken, keep an explicit route for it whose routine is paused, or turn
+  off "Local scripts" for it. A host before v0.71.0 refused a hidden agent with 409, and the
+  route then waits in `agent_hidden` until a person restores the agent.
 
 ## Verify
 

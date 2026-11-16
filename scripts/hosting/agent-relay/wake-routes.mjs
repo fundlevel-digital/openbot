@@ -4,7 +4,8 @@
 // Each agent with a verified relay credential and no route gets a `message` route. The output also
 // shows whether OpenBot's automation server lists the agent now: `localScripts: "on"` means the wake
 // can go out; `"off_or_hidden"` means the route will wait until the owner turns "Local scripts" on
-// for that agent (or restores a hidden agent); `"unknown"` means the server did not answer.
+// for that agent (on a host before v0.71.0, also until a person restores a hidden agent; from v0.71.0
+// the server lists a hidden agent); `"unknown"` means the server did not answer.
 // The running listener reads the changed file at its next reload; it needs no restart. The listener
 // can also find these routes itself when `wake.discoverAutomationRoutes` is true.
 //
