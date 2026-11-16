@@ -252,7 +252,9 @@ async function verify(label: string, agentId: string, threadId: string) {
   );
   const listed = rows.find((row) => row.tool === "tool_call");
   assert.ok(listed);
-  assert.deepEqual(listed.keys, [{ name: keyName, path: join(keysRoot, ".vault", keyName), source: "vault" }]);
+  // Since agent scope (upstream 0.70.0), an agent gets its own copy of a Vault key at
+  // `.vault/<agentId>/<NAME>`. A key for every agent also stays at the older `.vault/<NAME>` path.
+  assert.deepEqual(listed.keys, [{ name: keyName, path: join(keysRoot, ".vault", agentId, keyName), source: "vault" }]);
   const requested = rows.find((row) => row.tool === "request_api_key");
   assert.ok(requested);
   assert.equal(requested.status, "saved");
@@ -264,9 +266,11 @@ async function verify(label: string, agentId: string, threadId: string) {
     0,
     "Reusing a shared key never asks for another value.",
   );
-  const file = await stat(join(keysRoot, ".vault", keyName));
-  assert.ok(file.size > 0);
-  if (process.platform !== "win32") assert.equal(file.mode & 0o777, 0o600);
+  for (const path of [join(keysRoot, ".vault", agentId, keyName), join(keysRoot, ".vault", keyName)]) {
+    const file = await stat(path);
+    assert.ok(file.size > 0);
+    if (process.platform !== "win32") assert.equal(file.mode & 0o777, 0o600);
+  }
   assert.ok(
     !JSON.stringify(database.readConversation(agentId, threadId)).includes(syntheticKey),
     "Saved conversation excludes the credential value.",
@@ -307,7 +311,7 @@ try {
     observations().find((row) => row.label === "other-workspace" && row.event === "turn")?.sandboxType,
     "workspaceWrite",
   );
-  pass("A second agent shares the same file while Computer Use is off and its write sandbox is restricted");
+  pass("A second agent uses the same Vault key while Computer Use is off and its write sandbox is restricted");
   assert.ok(!JSON.stringify(events).includes(syntheticKey), "All service events exclude the credential value.");
   for (const agent of [jan, other]) {
     await assert.rejects(stat(join(keysRoot, agent.id, keyName)), "Reusing a Vault key creates no private copy.");

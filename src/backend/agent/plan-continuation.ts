@@ -44,7 +44,7 @@ const NOT_WAITING = String.raw`(?!${SENTENCE_CHAR}*\b(?:(?:if|when|once|after|un
  * answer that says the agent waits, holds or stops does not match.
  */
 const NAMES_NEXT_STEP = new RegExp(
-  String.raw`(?:\blet me now\b|\bnow let me\b|\bi['’]ll now\b|\bi will now\b|\bnow i(?:['’]ll| will)\b|\bnext,?\s+i(?:['’]ll| will)\b|\bi(?:['’]ll| will)\s+(?:retrieve|fetch|find|check|read|run|write|create|prepare|update|open|download|inspect|review|search|verify|complete|continue|finish|fix|build|test)\b(?!\s+you\b)|\bi(?:['’]m| am)\s+(?:now\s+)?(?:retrieving|fetching|finding|checking|reading|running|writing|creating|preparing|updating|opening|downloading|inspecting|reviewing|searching|verifying|completing|continuing|finishing|fixing|building|testing)\b(?!\s+you\b))(?!\s+(?:wait|hold|pause|stop)\b)${NOT_WAITING}[^.!?\n]{0,100}[.:…]?\s*$`,
+  String.raw`(?:\blet me now\b|\bnow let me\b|\bi['’]ll now\b|\bi will now\b|\bnow i(?:['’]ll| will)\b|\bnext,?\s+i(?:['’]ll| will)\b|\bi(?:['’]ll| will)\s+(?:retrieve|fetch|find|check|read|run|write|create|prepare|update|open|download|inspect|review|search|verify|complete|continue|finish|fix|build|test)\b(?!\s+you\b)|\bi(?:['’]m| am)\s+(?:now\s+)?(?:retrieving|fetching|finding|checking(?!\s+with\b)|reading|running(?!\s+(?:late|low|out|behind|into)\b)|writing(?!\s+to\b)|creating|preparing|updating|opening|downloading|inspecting|reviewing|searching|verifying|completing|continuing|finishing|fixing|building|testing)\b(?!\s+you\b))(?!\s+(?:wait|hold|pause|stop)\b)${NOT_WAITING}[^.!?\n]{0,100}[.:…]?\s*$`,
   "i",
 );
 
