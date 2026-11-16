@@ -79,7 +79,8 @@ const calls = (...items: FakeCall[]) => `<<CALLS${JSON.stringify(items)}CALLS>>`
 const FAKE_CODEX = `#!/usr/bin/env node
 const { appendFileSync, existsSync, readFileSync, writeFileSync } = require("node:fs");
 if (process.argv.includes("--version")) {
-  process.stdout.write("codex-cli 0.160.1\\n");
+  // This branch requires Codex 0.166.0 or newer (native-runtime.lock.json).
+  process.stdout.write("codex-cli 0.166.0\\n");
   process.exit(0);
 }
 const LOG = ${JSON.stringify(fakeLog)};

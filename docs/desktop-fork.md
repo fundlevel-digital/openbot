@@ -91,8 +91,8 @@ source changes as its tag.
 
 After an upstream merge or rebase, keep these checks in `desktop-fork.yml`:
 
-- `scripts/plan-continuation-e2e.ts`: continue a short unfinished next-step answer or commentary,
-  with bounded retries and no continuation while waiting for the user.
+- `scripts/plan-continuation-e2e.ts`: upstream's continuation rules, plus the fork's human-handoff
+  pauses: no continuation while a person must act, answer, sign in or approve.
 - `scripts/browser-user-control-e2e.ts`: tab-list and status reads return while a person holds a
   tab; page reads and mutations still wait.
 - `bun run test:browser-cdp`: attach the real `agent-browser` CLI to the existing tab, keep its
@@ -127,6 +127,10 @@ merge (rule "Upstream overlap check" in `AGENTS.md`). The branch no longer has t
   Upstream #8843 adds each Cursor account after the first from an API key. A host or client that
   still names `cursor-api-key-v1` is not refused: the host ignores an unknown capability, and a
   client accepts any capability name that a host lists.
+- The fork's next-step continuation rule (fork commits `e312fa5112`, `aea44dc452`): extra "I'll
+  retrieve ..." and "I'm fetching ..." phrases, and a commentary-only progress message read as the
+  turn's answer. Upstream's rules (#8393 status and Portuguese next steps, #8837 Codex narration
+  answer) apply. The fork's human-handoff pauses (`7f3ef1500b`) and MCP sign-in pause stay.
 
 ## Known exceptions
 

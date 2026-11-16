@@ -884,19 +884,6 @@ export class TurnLifecycle {
       logger.info("A turn's last narration became its answer.", { agentId, turnId, provider: source.provider });
       return false;
     }
-    // This branch: a turn that ends after a progress message is not empty, also when that message
-    // came before the last tool step. The continuation reads that message at the turn's end and
-    // continues the work that it names. Upstream's narration answer above runs first.
-    if (
-      messages.some(
-        (message) =>
-          message.turnId === turnId &&
-          message.author === "assistant" &&
-          message.itemType === "commentary" &&
-          message.text.trim().length > 0,
-      )
-    )
-      return false;
     if (running.acted) return false;
     const message = sourceText("error.provider.acpNoAnswer", {
       provider: agentProviderDescriptor(source.provider).displayName,
@@ -2015,17 +2002,6 @@ export class TurnLifecycle {
       // A turn that is not quiet after all, such as one with a file, shows its answers in the channel.
       if (!quiet) this.#quietChannelTurns.delete(turnId);
       const latestAssistant = latestTurnAnswer(snapshot.messages, turnId);
-      // Some providers end after a progress message without a final answer. That message can name
-      // unfinished work, but it must stay commentary when the continuation checks it.
-      const continuationAnswer =
-        latestAssistant?.text ??
-        snapshot.messages.findLast(
-          (message) =>
-            message.turnId === turnId &&
-            message.author === "assistant" &&
-            message.itemType === "commentary" &&
-            message.text.trim().length > 0,
-        )?.text;
       // A routine run that answered only the no-update marker, also a Test run that shows it in the
       // chat, does not put the marker in the preview.
       const markerAnswer =
@@ -2049,7 +2025,7 @@ export class TurnLifecycle {
         // Sign-in needs the person even when the answer does not end with a question or a wait.
         // An earlier turn's card stays in history and must not block a new request.
         !snapshot.messages.some((message) => message.turnId === turnId && mcpSignInEvent(message) !== null) &&
-        this.#planContinues(agentId, laneTaskId, turnId, deliveries, continuationAnswer);
+        this.#planContinues(agentId, laneTaskId, turnId, deliveries, latestAssistant?.text);
       const continuation =
         compactionContinuation ??
         (planContinues
@@ -2062,7 +2038,7 @@ export class TurnLifecycle {
                 snapshot.messages.findLast(
                   (message) => message.itemType === CONVERSATION_PLAN_ITEM_TYPE && message.turnId !== turnId,
                 )?.plan ?? null,
-              answer: continuationAnswer,
+              answer: latestAssistant?.text,
             })
           : null);
       if (!continuation) this.#planContinuation.cancel(agentId, laneTaskId);
