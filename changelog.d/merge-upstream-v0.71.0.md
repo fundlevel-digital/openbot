@@ -9,6 +9,10 @@
 - The saved Cursor API key applies to the first Cursor account only. An added Cursor account uses
   its own key, as upstream v0.71.0 adds.
 
+- A Codex turn that ends with narration after its last step and an empty answer shows that
+  narration as its answer, as in upstream v0.71.0. A turn that ends after a progress message
+  before its last step still continues the work that the message names, as before on this branch.
+
 ### Fixed
 
 - The paged MCP server list of a joined server now hides the servers that a member cannot see, and

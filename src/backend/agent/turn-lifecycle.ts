@@ -871,13 +871,7 @@ export class TurnLifecycle {
     const { messages } = snapshot;
     if (
       messages.some(
-        (message) =>
-          message.turnId === turnId &&
-          (message.id === `${turnId}:plan` ||
-            isAgentAnswer(message) ||
-            // A turn that ends after a progress message is not empty: the continuation reads that
-            // message at the turn's end and continues the work that it names.
-            (message.author === "assistant" && message.itemType === "commentary" && message.text.trim().length > 0)),
+        (message) => message.turnId === turnId && (message.id === `${turnId}:plan` || isAgentAnswer(message)),
       )
     )
       return false;
@@ -890,6 +884,19 @@ export class TurnLifecycle {
       logger.info("A turn's last narration became its answer.", { agentId, turnId, provider: source.provider });
       return false;
     }
+    // This branch: a turn that ends after a progress message is not empty, also when that message
+    // came before the last tool step. The continuation reads that message at the turn's end and
+    // continues the work that it names. Upstream's narration answer above runs first.
+    if (
+      messages.some(
+        (message) =>
+          message.turnId === turnId &&
+          message.author === "assistant" &&
+          message.itemType === "commentary" &&
+          message.text.trim().length > 0,
+      )
+    )
+      return false;
     if (running.acted) return false;
     const message = sourceText("error.provider.acpNoAnswer", {
       provider: agentProviderDescriptor(source.provider).displayName,

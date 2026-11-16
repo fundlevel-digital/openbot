@@ -173,4 +173,4 @@ The route is a local setting with no Team API route. On a server with no window:
 A slow host is a different fault. If the Support log shows `[timeout/connect/...]`, or a desktop
 needs 20 seconds or more to open its channels, restart `openbot.service`. Upstream commit
 `4c8d48d7c0` ("Keep a host answering devices when one device's setup stops") changes this area.
-The fork does not have it at v0.68.0, and it is not confirmed that it fixes this fault.
+The fork has it from the v0.71.0 merge. It is not confirmed that it fixes this fault.
