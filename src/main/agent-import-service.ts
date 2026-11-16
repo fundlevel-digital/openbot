@@ -90,6 +90,7 @@ export interface AgentImportAgents {
     description: string;
     avatarSeed: string;
     avatarHue: null;
+    imported: true;
   }): ReturnType<AgentService["createAgentProfile"]>;
   createRoutine(input: CreateRoutineInput, options?: { recordConversationEvent?: boolean }): unknown;
   createMemory(input: { agentId: string; text: string }): unknown;
@@ -782,6 +783,7 @@ export class AgentImportService {
           description: source.description,
           avatarSeed: `${source.key}-${randomUUID()}`,
           avatarHue: null,
+          imported: true,
         })
         .pipe(Effect.mapError((error) => archiveFailure(error.cause))),
       (created) =>

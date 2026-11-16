@@ -183,7 +183,7 @@ interface InstanceTransferAgents extends TransferPreferenceAgents, TransferHisto
   resolveAvatar(agentId: string): { path: string; mimeType: AvatarImageInput["mimeType"] } | null;
   listModels(): Array<Pick<AgentModelOption, "provider" | "id">>;
   createAgentProfile(
-    input: Omit<CreateAgentInput, "initialMessage"> & { title?: string },
+    input: Omit<CreateAgentInput, "initialMessage"> & { title?: string; imported: true },
   ): Effect.Effect<AgentSummary, unknown>;
   updateAgent(input: UpdateAgentInput): Effect.Effect<AgentSummary, unknown>;
   createRoutine(input: CreateRoutineInput, options?: { recordConversationEvent?: boolean }): Pick<Routine, "id">;
@@ -1316,6 +1316,7 @@ export class InstanceTransferService {
           ...(useModel
             ? { provider: source.provider, model: source.model, reasoningEffort: source.reasoningEffort }
             : {}),
+          imported: true,
         })
         .pipe(Effect.mapError(failure)),
       (created) =>

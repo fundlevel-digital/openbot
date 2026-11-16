@@ -196,6 +196,7 @@ export class HermesImportService {
               description: instructions?.description ?? "",
               avatarSeed: `hermes-${profile.key}-${randomUUID()}`,
               avatarHue: null,
+              imported: true,
             })
             .pipe(Effect.mapError((error) => archiveFailure(error.cause))),
       (agent) =>

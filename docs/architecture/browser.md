@@ -572,6 +572,35 @@ its connections fail with 502, there is no direct fallback, and the list shows i
 sharing closes the channel; the row stays until an admin deletes it. Neither end logs a target or
 a byte. Only an owner or an admin can share, because the routes are `browser-proxies-v1` admin routes.
 
+### Browser profile of a new agent (fork only)
+
+A host can start each new agent on a named profile, for example a profile with a proxy, in place of
+Shared. The server operator writes `openbot-new-agent-browser-profile-v1.json` in the app's user-data
+folder, the folder that holds `openbot.db`:
+
+```json
+{ "version": 1, "profileId": "<32 hex characters>" }
+```
+
+To find the id, read the `browser_profiles` table. This command only reads:
+`sqlite3 -readonly <user-data>/openbot.db "SELECT profile_id, name FROM browser_profiles;"`.
+
+- The host reads the file each time it creates an agent, so a change needs no restart. Existing
+  agents keep their profile.
+- It applies to each new agent: the local create, the Team API create and profile-save routes (a
+  joined desktop, the web client and the phone), an agent that `openbot.create_agent` makes, a
+  template, a marketplace agent and a messaging orchestrator. A duplicate keeps the profile of its
+  source. An agent import, a Hermes import and an instance transfer start on Shared, as before.
+- When the file is missing, the new agent is on Shared. When the file is not valid, or names a
+  profile that does not exist, the new agent is on Shared, the creation continues, and the host
+  logs one warning with only the file name.
+- `src/main/new-agent-browser-profile.ts` reads the file. `AgentStore.createAgent` sets
+  `browserProfileId` and `ownBrowserSession: true` before the first write, as a profile change does.
+
+There is no UI and no Team API route for this setting. This sets aside the default rule that a
+server feature ships its remote path in the same change: the owner chose the smallest fork patch,
+because each upstream merge carries it.
+
 ### Tab lifetime
 
 The agent decides when a tab closes. Nothing closes a tab when a turn ends: `close_tab` is the only

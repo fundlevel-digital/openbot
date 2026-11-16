@@ -8,3 +8,7 @@
 - Hosted servers with Agent Relay: a session that an agent starts in its own workspace folder, such as
   a side run, now carries the relay name of that agent in the uploaded history. Before, only the
   agent's own conversations had the name.
+- Servers: a host can start each new agent on a named browser profile, such as a profile with a
+  proxy, in place of Shared. Write `openbot-new-agent-browser-profile-v1.json` in the user-data
+  folder; it needs no restart, and existing agents keep their profile. See
+  `docs/architecture/browser.md#browser-profile-of-a-new-agent-fork-only`.

@@ -2955,12 +2955,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       );
   });
 
+  /** Fork only: `imported` marks an import or a transfer, which does not take the new-agent browser profile. */
   readonly createAgentProfile = Effect.fn("AgentService.createAgentProfile")(function* (
     this: AgentService,
-    input: Omit<CreateAgentInput, "initialMessage"> & { title?: string },
+    input: Omit<CreateAgentInput, "initialMessage"> & { title?: string; imported?: boolean },
   ) {
     let agent = yield* this.#store
-      .createAgent(input)
+      .createAgent(input, undefined, input.imported === true)
       .pipe(
         Effect.mapError(
           (failure) => new AgentLifecycleFailed({ operation: "create agent profile", cause: failure.cause }),

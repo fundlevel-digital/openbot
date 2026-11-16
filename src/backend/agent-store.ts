@@ -208,6 +208,7 @@ export class AgentStore {
   readonly #creationQueue = Semaphore.makeUnsafe(1);
 
   readonly #agentDefaults: () => AgentDefaults;
+  readonly #newAgentBrowserProfile: () => Effect.Effect<string | undefined>;
 
   constructor(
     userDataPath: string,
@@ -216,6 +217,8 @@ export class AgentStore {
     agentDefaults: () => AgentDefaults = () => DEFAULT_AGENT_DEFAULTS,
     /** The folder of the agents, shared files and downloads. A local server has its own. */
     openbotRoot = join(homePath, "OpenBot"),
+    /** Fork only. The named browser profile of a new agent; `undefined` means Shared. Read at each creation. */
+    newAgentBrowserProfile: () => Effect.Effect<string | undefined> = () => Effect.succeed(undefined),
   ) {
     this.#statePath = join(userDataPath, LEGACY_AGENTS_STATE_FILE);
     this.#agentsRoot = join(openbotRoot, "Agents");
@@ -228,6 +231,7 @@ export class AgentStore {
     this.#automationRoot = automationRoot(userDataPath);
     this.#database = database;
     this.#agentDefaults = agentDefaults;
+    this.#newAgentBrowserProfile = newAgentBrowserProfile;
     this.#profileCreationRecovery = new ProfileCreationRecovery(
       join(userDataPath, "agent-profile-creations"),
       this.#agentsRoot,
@@ -351,14 +355,16 @@ export class AgentStore {
     return this.#state.agents.map((agent) => ({ ...agent }));
   }
 
-  createAgent(input: Omit<CreateAgentInput, "initialMessage">, profileOperationId?: string) {
-    return this.#creationQueue.withPermit(this.#createAgent(input, profileOperationId));
+  /** Fork only: `imported` keeps an imported or transferred agent off the new-agent browser profile. */
+  createAgent(input: Omit<CreateAgentInput, "initialMessage">, profileOperationId?: string, imported = false) {
+    return this.#creationQueue.withPermit(this.#createAgent(input, profileOperationId, imported));
   }
 
   #createAgent = Effect.fn("AgentStore.createAgent")(function* (
     this: AgentStore,
     input: Omit<CreateAgentInput, "initialMessage">,
-    profileOperationId?: string,
+    profileOperationId: string | undefined,
+    imported: boolean,
   ): Effect.fn.Return<AgentSummary, StoredStateFailure> {
     try {
       if (this.#state.agents.length >= INPUT_LIMITS.agents) {
@@ -373,6 +379,12 @@ export class AgentStore {
       record.avatarSeed = input.avatarSeed;
       record.avatarHue = input.avatarHue;
       applyAvatarColor(record, input.avatarHue, input.avatarColor);
+      // Fork only. Set as `updateAgent` sets a named profile, so an older OpenBot opens the agent's own session.
+      const browserProfileId = imported ? undefined : yield* this.#newAgentBrowserProfile();
+      if (browserProfileId !== undefined) {
+        record.browserProfileId = browserProfileId;
+        record.ownBrowserSession = true;
+      }
       if (profileOperationId) yield* this.#profileCreationRecovery.begin(record.id, profileOperationId);
       yield* storedIO(() => mkdir(record.workspacePath, { recursive: true, mode: 0o700 }));
       this.#state.agents.unshift(record);

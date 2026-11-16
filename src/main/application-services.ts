@@ -322,6 +322,7 @@ import { MCP_SERVER_OWNERS_FILE, McpServerOwnersStore } from "./mcp-server-owner
 import { MemoryReviewPreferenceStore } from "./memory-review-preference-store";
 import { MessagingCredentialStore } from "./messaging-credential-store";
 import { ModelReleaseCatalog, ModelVisibility } from "./model-visibility";
+import { NEW_AGENT_BROWSER_PROFILE_FILE, newAgentBrowserProfile } from "./new-agent-browser-profile";
 import { NotificationPreferenceStore } from "./notification-preference-store";
 import { OnePasswordConnectorService } from "./onepassword-connector-service";
 import { OnePasswordConnectorStore } from "./onepassword-connector-store";
@@ -1264,12 +1265,18 @@ export async function createApplicationServices({
     join(app.getPath("userData"), AGENT_DEFAULTS_PREFERENCE_FILE),
   );
   await runCauseEffect(agentDefaults.load());
+  const database = new OpenBotDatabase(app.getPath("userData"));
   const store = new AgentStore(
     app.getPath("userData"),
     homedir(),
-    new OpenBotDatabase(app.getPath("userData")),
+    database,
     () => agentDefaults.get(),
     localServerChild?.agentRoot,
+    // Fork only: read at each creation, so an operator change needs no restart.
+    newAgentBrowserProfile(
+      join(app.getPath("userData"), NEW_AGENT_BROWSER_PROFILE_FILE),
+      (profileId) => new BrowserProfileStore(database).get(profileId) !== undefined,
+    ),
   );
   // Phase marks for `dev:bench`, so a slow start shows which group of awaits it waited on. They
   // change nothing.
