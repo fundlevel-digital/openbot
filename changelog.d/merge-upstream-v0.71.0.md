@@ -3,9 +3,6 @@
 - Bring in upstream v0.71.0 and keep the additions of this branch: no capacity limits, paged MCP
   server, skill and channel memory lists, native browser control, hosted egress, chunked JSON
   replies, channel routing clarification and the isolated update feed.
-- A saved authenticator code still goes only to a numeric code field. Upstream v0.71.0 also fills a
-  text field that its label or form names as an authenticator code, such as on Okta; this branch
-  does not.
 
 ### Removed
 
@@ -20,6 +17,9 @@
   Upstream's rules apply: a turn continues after "Let me now ...", "I'll run ...", "I'm checking
   ...", or a Portuguese next step. A Codex turn that ends with narration after its last step shows
   that narration as its answer.
+- Authenticator codes: a saved authenticator code no longer goes only to a numeric code field. A
+  text field that its name, label or form names as an authenticator code, such as on Okta or
+  Squarespace, now takes the vault code, as in upstream v0.71.0.
 
 ### Fixed
 

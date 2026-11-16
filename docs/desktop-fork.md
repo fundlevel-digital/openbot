@@ -97,8 +97,8 @@ After an upstream merge or rebase, keep these checks in `desktop-fork.yml`:
   tab; page reads and mutations still wait.
 - `bun run test:browser-cdp`: attach the real `agent-browser` CLI to the existing tab, keep its
   session, limit target access, redact secrets, and revoke external access for user control.
-- `scripts/browser-smoke.ts --scenario=secret-handoff`: saved authenticator fills work without an
-  autocomplete marker when the numeric field has an explicit OTP identity.
+- `scripts/browser-smoke.ts --scenario=secret-handoff`: saved password and authenticator fills,
+  with upstream's code-field rule (#8524).
 - `scripts/browser-native-control-e2e.ts`: use real OS input in the same tab between CDP sessions;
   keep the document and sign-in, exclude CDP during native control, and preserve permission gates.
 - `scripts/browser-native-task-permission-e2e.ts`: allow an enabled agent's task to use its own
@@ -131,6 +131,10 @@ merge (rule "Upstream overlap check" in `AGENTS.md`). The branch no longer has t
   retrieve ..." and "I'm fetching ..." phrases, and a commentary-only progress message read as the
   turn's answer. Upstream's rules (#8393 status and Portuguese next steps, #8837 Codex narration
   answer) apply. The fork's human-handoff pauses (`7f3ef1500b`) and MCP sign-in pause stay.
+- Authenticator codes for numeric fields only (fork commit `bd2541951b` and the labelled numeric rule
+  before it). Upstream's rule (#8524) applies: a text, tel or number field whose id, name, label,
+  aria label, placeholder or title has a code word, or a "code" field in a form that names an
+  authenticator app, takes a vault code. The fork's check that a field is visible stays.
 
 ## Known exceptions
 

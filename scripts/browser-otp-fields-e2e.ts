@@ -1,4 +1,6 @@
-// Drives the real secure-field detector and entry guard in an isolated Electron browser.
+// Drives the real secure-field detector and entry guard in an isolated Electron browser. The code
+// field rule is upstream's (#8524): a text, tel or number field whose id, name, label, aria label or
+// placeholder has a code word, and no backup, name, label, card, postal or similar word.
 // Run: bun scripts/browser-otp-fields-e2e.ts [--baseline]
 // Report: .openbot-build/browser-otp-fields-e2e/report.json
 import assert from "node:assert/strict";
@@ -157,27 +159,27 @@ async function runWorker(): Promise<void> {
     await load();
     for (const selector of [
       "#verificationCode",
-      "#labelled",
       "#aria",
       "#wrapped",
       "#placeholder",
       "#ius-mfa-token",
       "#marked",
+      "#otp-text",
     ]) {
       assert.equal(
         (await prepare(selector)).fields.oneTimeCode,
         true,
         `The code field was not recognized: ${selector}`,
       );
-      checks.push(`${selector}: a numeric authentication field is recognized`);
+      checks.push(`${selector}: an authentication code field is recognized`);
     }
+    // "labelled" and "unlabelled" have the word "label" in their id, which upstream's rule refuses.
     for (const selector of [
       "#cardVerificationCode",
       "#cvc",
       "#postalVerificationCode",
       "#ordinary",
-      "#otp-text",
-      "#payment",
+      "#labelled",
       "#unlabelled",
     ]) {
       assert.equal((await prepare(selector)).fields.oneTimeCode, false, `An unrelated field was accepted: ${selector}`);
@@ -202,11 +204,14 @@ async function runWorker(): Promise<void> {
     assert.equal(await Effect.runPromise(ready.clear(CODE)), true, "Secure entry did not clear its fixture value.");
     checks.push("Recognized fields receive trusted input and clear the value");
 
+    // Upstream's fingerprint keeps the id, name, autocomplete and aria-label of the field until entry.
     for (const [selector, mutation] of [
-      ["#labelled", "document.querySelector('#label').textContent = 'Postal code'"],
-      ["#aria", "document.querySelector('#aria').setAttribute('aria-labelledby', 'other-label')"],
-      ["#placeholder", "document.querySelector('#placeholder').placeholder = 'Search'"],
-      ["#verificationCode", "document.querySelector('#verificationCode').inputMode = 'text'"],
+      ["#verificationCode", "document.querySelector('#verificationCode').name = 'search'"],
+      [
+        "#verificationCode",
+        "document.querySelector('#verificationCode').setAttribute('autocomplete', 'one-time-code')",
+      ],
+      ["#placeholder", "document.querySelector('#placeholder').setAttribute('aria-label', 'Search')"],
       ["#verificationCode", "document.querySelector('#verificationCode').style.display = 'none'"],
     ]) {
       assert.ok(selector && mutation);
@@ -219,7 +224,7 @@ async function runWorker(): Promise<void> {
         true,
         "A rejected entry changed a field.",
       );
-      checks.push(`${selector}: changed field or label metadata blocks entry`);
+      checks.push(`${selector}: changed field metadata blocks entry`);
     }
     await load();
     const stale = await prepare("#verificationCode");

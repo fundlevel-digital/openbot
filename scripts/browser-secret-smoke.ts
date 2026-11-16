@@ -404,9 +404,11 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
     }
     await runBitwardenBrowserSmoke(browser);
     checks.push("saved passwords and authenticator codes submit without exposing values");
+    // Upstream's rule (#8524): a text, tel or number field whose id, name, label or placeholder has a
+    // code word takes a vault code; a card, phone or password field does not.
     for (const [selectors, fillable] of [
       [["#totpPin"], true],
-      [["#otp-text"], false],
+      [["#otp-text"], true],
       [["#phone"], false],
       [["#numeric"], false],
       [["#card"], false],
@@ -644,23 +646,20 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
         await runCauseEffect(browser.close(tab.id));
       }
     }
-    // A vault code goes only to a code field. On this branch that is a field with
-    // autocomplete="one-time-code", or a numeric input (tel, number or inputmode="numeric") with no other
-    // autocomplete value and a code word in its id, name, aria-label, label or placeholder, such as Kite's
-    // "External TOTP" (#userid). A text input does not take it, also when its name or label is a code
-    // word (older Keycloak #otp, Okta #okta-code, Squarespace #squarespace-code, #answer). A recovery,
-    // SMS, phone, or promo field, an email code field, or a plain code field does not take it.
+    // A vault code goes only to a code field. An older Keycloak page names it otp with no
+    // autocomplete="one-time-code"; Okta names it passcode, and Squarespace and Kite name it only in its
+    // label (#8320). A field named only "code" or "passcode" takes it in a form whose visible text names
+    // an authenticator app and no email. A recovery, SMS, phone, or promo field, an email code field, or
+    // a plain code field in another form does not take it, also when hidden text names an app.
     for (const [selector, fillable] of [
-      // This branch gives a vault code to a numeric code field only, so these text fields refuse it.
-      // Upstream (#6092, #8524) accepts #otp, #totpmfa, #okta-code, #squarespace-code and #answer.
-      ["#otp", false],
-      ["#totpmfa", false],
-      ["#okta-code", false],
+      ["#otp", true],
+      ["#totpmfa", true],
+      ["#okta-code", true],
       ["#okta-second-code", false],
       ["#fallback-code", false],
-      ["#squarespace-code", false],
+      ["#squarespace-code", true],
       ["#userid", true],
-      ["#answer", false],
+      ["#answer", true],
       ["#promo-code", false],
       ["#plain-form-code", false],
       ["#recovery-otp", false],
@@ -698,7 +697,7 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
     // that would send the form as GET.
     for (const [selector, method, change, path] of [
       ["#code", "otp", "document.querySelector('#code').name = 'changed'", "/login"],
-      ["#otp-0", "authenticator", "document.querySelector('#otp-0').inputMode = 'text'", "/authenticator-fields"],
+      ["#otp-0", "authenticator", "document.querySelector('#otp-0').name = 'changed'", "/authenticator-fields"],
       [
         "#post-password",
         "password",

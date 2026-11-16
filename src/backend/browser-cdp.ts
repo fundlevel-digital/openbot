@@ -382,15 +382,15 @@ export class BrowserCdpEngine {
        * Which secret the fields are built for, so a fill that no user approves goes only there: every
        * field is a password field, or every field asks for a one-time code. A text field that the page
        * masks with `-webkit-text-security` is a password field. A code field has
-       * `autocomplete="one-time-code"`, or is a numeric input (tel, number or `inputmode="numeric"`)
-       * that is not a password input, with no autocomplete value other than off or on, and a code word
-       * in its id, name, aria-label, aria-labelledby text, placeholder or label: otp, totp,
-       * authenticator, one time code/password/passcode, or a verification, authentication, MFA, 2FA or
-       * two factor code/token/passcode with no card, credit, debit, CVV, CVC, CSC, postal or zip word,
-       * as Kite ("External TOTP") has. This branch gives a vault code to a numeric code field only: upstream #6092 and
-       * #8524 also accept a plain text input, such as Okta's `credentials.passcode`; this branch
-       * refuses it. The fingerprint check of `enter` keeps each attribute of this decision until the
-       * fill; the mask is read here only, because a page can change it as it fills.
+       * `autocomplete="one-time-code"`, or is a text, tel or number input with a strong code word such as
+       * otp, totp, authentication code or verification code in its id, name, aria-label, placeholder,
+       * title or label, as older Keycloak, Squarespace and Kite ("External TOTP") sign-in pages have.
+       * A field named only "code" or "passcode", as Okta's `credentials.passcode`, is one when the visible
+       * text of its form names an authenticator app and no email or SMS. A name that also has backup,
+       * recovery, mail, phone, sms, name, label, or a promo, address or card word is not one: it is
+       * another code or not a code. The fingerprint
+       * check of `enter` keeps the field, its form, and its id, name and autocomplete until the fill;
+       * the mask and the label text are read here only, because a page can change them as it fills.
        */
       fields: { password: boolean; oneTimeCode: boolean };
       /**
@@ -404,10 +404,7 @@ export class BrowserCdpEngine {
     const generation = this.#navigationGeneration;
     // A submitter that overrides the form to GET is part of it, so a page cannot add one while the
     // vault read waits.
-    // A site's accessible label can identify a code field even when its id is opaque. Keep every
-    // label used for classification in the fingerprint, so a changed label cannot authorize entry.
-    const identityFields = `[this.id, this.name, this.getAttribute('aria-label') ?? '', this.getAttribute('placeholder') ?? '', ...[...(this.labels ?? [])].map(label => label.textContent ?? ''), ...(this.getAttribute('aria-labelledby') ?? '').split(/\\s+/).filter(Boolean).map(id => this.getRootNode().getElementById?.(id)?.textContent ?? '')]`;
-    const fingerprintFields = `[this.localName, this.type, ${identityFields}, this.getAttribute('autocomplete'), this.getAttribute('inputmode'), this.form?.action, this.form?.method, [...(this.form?.elements ?? [])].some((element) => element.hasAttribute('formmethod') && element.getAttribute('formmethod').trim().toLowerCase() !== 'post')]`;
+    const fingerprintFields = `[this.localName, this.type, this.id, this.name, this.getAttribute('autocomplete'), this.getAttribute('aria-label'), this.form?.action, this.form?.method, [...(this.form?.elements ?? [])].some((element) => element.hasAttribute('formmethod') && element.getAttribute('formmethod').trim().toLowerCase() !== 'post')]`;
     const fingerprint = `function() { return JSON.stringify(${fingerprintFields}); }`;
     const nodes = yield* this.#leaseEffect((send) =>
       Effect.gen({ self: this }, function* () {
@@ -479,10 +476,6 @@ export class BrowserCdpEngine {
         }
         // The form method does not count: many sign-in forms have no method and send with their own
         // script. The host blocks a navigation that would carry a vault value in its URL.
-        // Some authenticator forms omit autocomplete. Accept an explicit code identifier only with
-        // a numeric input. The upstream rules (#6092, #8524) also accept a plain text input whose name,
-        // label or form text has a code word; this branch refuses that field, so they are not active. The
-        // fingerprint includes each attribute used to make this decision.
         const fields = { password: inputs.length > 0, oneTimeCode: inputs.length > 0 };
         let servedByWorker = false;
         for (const node of inputs) {
@@ -490,15 +483,15 @@ export class BrowserCdpEngine {
             send,
             node.backendNodeId,
             `function() {
-              const autocomplete = (this.getAttribute('autocomplete') ?? '').toLowerCase().split(/\\s+/).filter(Boolean);
-              const identity = ${identityFields}.join(' ')
-                .replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-              const numeric = ['tel', 'number'].includes(this.type) || this.inputMode === 'numeric';
-              const verification = !/\\b(?:card|credit|debit|cvv|cvc|csc|postal|zip)\\b/.test(identity)
-                && /\\b(?:verification|authentication|mfa|2fa|two factor) (?:code|token|passcode)\\b/.test(identity);
-              const code = /\\b(?:otp|totp|authenticator|one time (?:code|password|passcode))\\b/.test(identity) || verification;
-              const unspecified = autocomplete.every(value => value === 'off' || value === 'on');
-              return { password: this.type === 'password' || (this.type === 'text' && !['', 'none'].includes(getComputedStyle(this).getPropertyValue('-webkit-text-security'))), oneTimeCode: autocomplete.includes('one-time-code') || (unspecified && this.type !== 'password' && numeric && code), network: ${LOADED_FROM_NETWORK} };
+              const words = (text) => text.replace(/([a-z])([A-Z0-9])/g, '$1 $2').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+              const labelledBy = (this.getAttribute('aria-labelledby') ?? '').split(/\\s+/).map((id) => (id && this.getRootNode().getElementById?.(id)?.textContent) || '');
+              const named = words([this.id, this.name, this.getAttribute('aria-label') ?? '', this.getAttribute('placeholder') ?? '', this.title, ...[...(this.labels ?? [])].map((label) => label.textContent ?? ''), ...labelledBy].join(' '));
+              const codeWord = /totp|\\b(?:otp|2fa|mfa)+(?:code|token|pin)?\\b|\\bauthenticator\\b|\\bauthentication ?(?:app|code)\\b|\\bone ?time ?(?:code|password|passcode|pin)\\b|\\bverification ?code\\b|\\btwo ?(?:factor|step)\\b|\\bmulti ?factor\\b/;
+              // Okta names its email, SMS and app code fields the same, so a plain code or passcode
+              // field counts only in a form whose visible text names an app and no email or SMS.
+              const authenticatorForm = () => { const text = words(this.form?.innerText ?? ''); return /\\bauthenticator\\b|\\bauthentication ?app\\b|\\btotp\\b/.test(text) && !/\\be ?mail(?:ed)?\\b|\\bsms\\b|\\btext (?:message|messaged)\\b|\\btexted\\b/.test(text); };
+              const oneTimeCode = (this.getAttribute('autocomplete') ?? '').toLowerCase().split(/\\s+/).includes('one-time-code') || (['text', 'tel', 'number'].includes(this.type) && (codeWord.test(named) || (/\\b(?:pass)?code\\b/.test(named) && authenticatorForm())) && !/backup|recovery|mail|phone|sms|name|label|promo|coupon|voucher|discount|gift|invite|referral|zip|postal|country|card|cvc|cvv|csc/.test(named));
+              return { password: this.type === 'password' || (this.type === 'text' && !['', 'none'].includes(getComputedStyle(this).getPropertyValue('-webkit-text-security'))), oneTimeCode, network: ${LOADED_FROM_NETWORK} };
             }`,
             [],
           );
