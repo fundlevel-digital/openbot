@@ -383,9 +383,11 @@ export class BrowserCdpEngine {
        * field is a password field, or every field asks for a one-time code. A text field that the page
        * masks with `-webkit-text-security` is a password field. A code field has
        * `autocomplete="one-time-code"`, or is a numeric input (tel, number or `inputmode="numeric"`)
-       * with no other autocomplete value and a code word such as otp, totp, authenticator or
-       * verification code in its id, name, aria-label, placeholder or label, as Kite ("External
-       * TOTP") has. This branch gives a vault code to a numeric code field only: upstream #6092 and
+       * that is not a password input, with no autocomplete value other than off or on, and a code word
+       * in its id, name, aria-label, aria-labelledby text, placeholder or label: otp, totp,
+       * authenticator, one time code/password/passcode, or a verification, authentication, MFA, 2FA or
+       * two factor code/token/passcode with no card, credit, debit, CVV, CVC, CSC, postal or zip word,
+       * as Kite ("External TOTP") has. This branch gives a vault code to a numeric code field only: upstream #6092 and
        * #8524 also accept a plain text input, such as Okta's `credentials.passcode`; this branch
        * refuses it. The fingerprint check of `enter` keeps each attribute of this decision until the
        * fill; the mask is read here only, because a page can change it as it fills.

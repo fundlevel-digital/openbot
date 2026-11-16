@@ -2337,7 +2337,7 @@ export class AttentionRegistry {
         "field-kind",
         kind === "password"
           ? "the field target is not a password input."
-          : 'the field targets are not identifiable one-time code inputs. A code field has autocomplete="one-time-code", or is a numeric input (tel, number, or inputmode="numeric") whose id, name, aria-label, label, or placeholder names an otp, totp, authenticator, or verification code. A plain text input does not take a saved code.',
+          : 'the field targets are not identifiable one-time code inputs. A code field has autocomplete="one-time-code", or is a numeric input (tel, number, or inputmode="numeric") that is not a password input, has no other autocomplete value than off or on, and whose id, name, aria-label, aria-labelledby text, label, or placeholder has otp, totp, authenticator, one time code, one time password, one time passcode, or a verification, authentication, MFA, 2FA, or two factor code, token, or passcode, and no card, credit, debit, CVV, CVC, CSC, postal, or zip word with that last group. A plain text input does not take a saved code.',
       );
     const found = yield* Effect.result(
       Effect.gen(function* () {

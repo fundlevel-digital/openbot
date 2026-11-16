@@ -221,16 +221,6 @@ const CLAUDE_SIGN_IN: ProviderCliCommand = {
 };
 
 /**
- * The environment one OpenCode process gets, read at spawn time.
- *
- * The stored key goes only to the `opencode-go` provider, in `openCodeConfigEnv`. OpenCode reads
- * `OPENCODE_API_KEY` for its free tier too, and a key there replaced the free tier's own key: a
- * refused key then failed each free model with "provider authentication required" (#7550).
- * `OPENCODE_DISABLE_AUTOUPDATE` is not optional on a managed install -- a CLI that updates itself
- * past the pin fails the exact-version compare in `verifyInstalledRuntime`, and OpenBot would then
- * keep re-downloading a runtime it already has.
- */
-/**
  * A Cursor key saved in OpenBot, for the Cursor CLI of the first account. A key in the user's
  * environment applies without it. An added Cursor account has its own key in `accountEnvironment`,
  * and this key does not replace it.
@@ -241,6 +231,16 @@ function cursorKeyEnv(context: ProviderClientContext): Record<string, string> {
   return key ? { CURSOR_API_KEY: key } : {};
 }
 
+/**
+ * The environment one OpenCode process gets, read at spawn time.
+ *
+ * The stored key goes only to the `opencode-go` provider, in `openCodeConfigEnv`. OpenCode reads
+ * `OPENCODE_API_KEY` for its free tier too, and a key there replaced the free tier's own key: a
+ * refused key then failed each free model with "provider authentication required" (#7550).
+ * `OPENCODE_DISABLE_AUTOUPDATE` is not optional on a managed install -- a CLI that updates itself
+ * past the pin fails the exact-version compare in `verifyInstalledRuntime`, and OpenBot would then
+ * keep re-downloading a runtime it already has.
+ */
 function opencodeEnv(cli: AgentCliInfo): Record<string, string> {
   return cli.source === "managed" ? { OPENCODE_DISABLE_AUTOUPDATE: "1" } : {};
 }
