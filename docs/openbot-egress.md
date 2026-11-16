@@ -13,7 +13,10 @@ upstream adds a new network-using unit.
 
 The namespace covers `openbot.service`, its terminal/browser/provider/MCP children,
 the three updater service units, and installed OpenBot Agent Relay enroll, history,
-and identity services. Timers and path units only trigger those services. Each
+identity, messaging, and wake services. The Agent Relay provisioner
+(`openbot-agent-relay-provision.service`) is not in the list: `attach` requires
+the OpenBot service user for each Agent Relay unit, and the provisioner runs as its
+own user. It uses the host network. Timers and path units only trigger those services. Each
 service uses the same namespace and resolver list. Quad100 comes first for
 MagicDNS, followed by the first two configured public resolvers. External queries
 can use a public fallback when Quad100 has no upstream with `--accept-dns=false`.

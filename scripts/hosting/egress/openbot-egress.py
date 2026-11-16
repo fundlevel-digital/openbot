@@ -29,7 +29,8 @@ READY = 'openbot-egress-ready.service'
 SLICE = 'openbottunnel.slice'
 UNITS = ('openbot.service', 'openbot-update.service', 'openbot-update-apply.service',
          'openbot-update-request.service', 'openbot-agent-relay-enroll.service',
-         'openbot-agent-relay-history.service', 'openbot-agent-relay-identity.service')
+         'openbot-agent-relay-history.service', 'openbot-agent-relay-identity.service',
+         'openbot-agent-relay-messaging.service', 'openbot-agent-relay-wake.service')
 
 
 def run(*args, check=True, data=None):

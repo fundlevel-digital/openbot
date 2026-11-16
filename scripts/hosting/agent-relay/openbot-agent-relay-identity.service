@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenBot per-bot Agent Relay identity attribution
+After=network-online.target openbot.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+Environment=HOME=@SERVICE_HOME@
+WorkingDirectory=@SERVICE_HOME@
+ExecStart=/usr/bin/python3 /opt/openbot-agent-relay/identity-sync.py
+Restart=on-failure
+RestartSec=15
+UMask=0077
+Nice=10
+MemoryMax=256M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=@SERVICE_HOME@
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

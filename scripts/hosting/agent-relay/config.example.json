@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "serverName": "example-server",
+  "relayOrigin": "https://cast.agentrelay.com",
+  "relayWorkspaceId": "RELAYCAST_WORKSPACE_ID",
+  "serviceUser": "openbot",
+  "serviceHome": "/var/lib/openbot",
+  "provisioner": {
+    "user": "openbot-relay",
+    "socket": "/run/openbot-agent-relay/provision/provision.sock",
+    "clientUser": "openbot",
+    "agentMetadata": {
+      "cloud_workspace_id": "AGENT_RELAY_CLOUD_WORKSPACE_ID",
+      "owner_hash": "SHA256_OF_AGENT_RELAY_OWNER_USER_ID"
+    }
+  },
+  "history": {
+    "database": "/var/lib/openbot/.agentworkforce/probe/HISTORY_DIRECTORY/history.db",
+    "probe": "/opt/openbot-agent-relay/bin/agent-relay-probe",
+    "account": "AGENT_RELAY_ACCOUNT_ID",
+    "workspace": "AGENT_RELAY_WORKSPACE_ID"
+  },
+  "wake": {
+    "ingressHosts": ["hkdk.events"],
+    "stateDir": "/var/lib/openbot/.local/state/openbot-agent-relay/wake",
+    "credentialsPath": "/var/lib/openbot/.local/state/openbot-agent-relay/messaging-credentials.json",
+    "automationRoot": "/var/lib/openbot/.config/OpenBot/automation",
+    "reloadIntervalMs": 5000,
+    "reconnectBaseMs": 2000,
+    "retryBaseMs": 1000,
+    "socketOpenTimeoutMs": 20000,
+    "discoverAutomationRoutes": true
+  }
+}

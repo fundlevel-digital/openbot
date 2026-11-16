@@ -1,0 +1,23 @@
+[Unit]
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+Environment=HOME=@SERVICE_HOME@
+WorkingDirectory=@SERVICE_HOME@
+UMask=0077
+Nice=10
+CPUWeight=10
+MemoryHigh=512M
+MemoryMax=1G
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=@SERVICE_HOME@
+PrivateTmp=true
+Type=oneshot
+ExecStart=@HISTORY_PROBE@ --json cloud install --account @HISTORY_ACCOUNT@ --workspace @HISTORY_WORKSPACE@ --include-existing --keep-saved-sharing --acknowledge-uninspected-schedules
+TimeoutStartSec=15min
+StandardOutput=append:@SERVICE_HOME@/.local/state/openbot-agent-relay/enroll.log
+StandardError=append:@SERVICE_HOME@/.local/state/openbot-agent-relay/enroll.log

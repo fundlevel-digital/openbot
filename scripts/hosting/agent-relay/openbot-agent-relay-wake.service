@@ -1,0 +1,21 @@
+[Unit]
+Description=Recipient-scoped Agent Relay wake delivery to OpenBot
+After=network-online.target openbot-agent-relay-messaging.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+ExecStart=/usr/bin/node /opt/openbot-agent-relay/recipient-wake.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@WAKE_STATE_DIR@
+
+[Install]
+WantedBy=multi-user.target

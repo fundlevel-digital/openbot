@@ -1,0 +1,26 @@
+[Unit]
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+Environment=HOME=@SERVICE_HOME@
+WorkingDirectory=@SERVICE_HOME@
+UMask=0077
+Nice=10
+CPUWeight=10
+MemoryHigh=512M
+MemoryMax=1G
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=@SERVICE_HOME@
+PrivateTmp=true
+Type=simple
+ExecStart=/usr/bin/python3 /opt/openbot-agent-relay/history-watch.py
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target
