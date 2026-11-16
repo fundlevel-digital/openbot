@@ -945,7 +945,11 @@ export class BrowserHost {
     return this.#activeTabId === tab.id || this.#tabBusy(tab);
   }
 
-  /** A task, a recording, a live view or a person uses the tab now, also when the panel does not show it. */
+  /**
+   * A task, a recording, a live view or a person uses the tab now, also when the panel does not show it.
+   * Sound is not a use: `#createView` mutes each tab, and Chromium still counts a muted page as audible,
+   * so a hidden video or live stream would never pause or unload (#9913).
+   */
   #tabBusy(tab: BrowserHostTab): boolean {
     return (
       this.#nativeTab?.tabId === tab.id ||
@@ -959,8 +963,7 @@ export class BrowserHost {
       tab.sourceSecretDocument === true ||
       (tab.externalCdp !== undefined && !tab.externalCdp.revoked) ||
       this.#takeoverTabIds.has(tab.id) ||
-      this.#userControlTabIds.has(tab.id) ||
-      tab.contents.isCurrentlyAudible()
+      this.#userControlTabIds.has(tab.id)
     );
   }
 
