@@ -161,6 +161,11 @@ conflicts in `src/backend/browser-host.ts`, `src/backend/browser-tab-operations.
 `scripts/browser-secret-smoke.ts`. Take upstream's version of these hunks, and keep the fork code
 in the same files: the native control tab, external CDP and the `click-once` offer.
 
+Exception: the fork frees a tab at once when a failed fill leaves no value in the page (fork commit
+`3290aca164`). Upstream's #10376 smoke expects that tab to stay protected. Fork commit `1f8bea30ff`
+changes the `/lost` page and the `after-fill` and `held` cases so that the tab stays protected in
+the fork. Keep that change while the fork keeps `3290aca164`.
+
 ## Known exceptions
 
 - Channel routines: from upstream v0.71.0 (#6077), a scheduled tick does not start a run while an
