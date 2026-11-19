@@ -48,9 +48,11 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
       lostPageLoads += 1;
       // The page cannot load again, as when the computer is offline when the card ends (#9883).
       if (lostPageOffline) return Response.error();
-      return new Response(`<!doctype html><body><label>Password<input id="password" type="password"></label></body>`, {
-        headers: { "Content-Type": "text/html" },
-      });
+      // The page copies the value into its title, so the fork's field cleanup cannot end the protection.
+      return new Response(
+        `<!doctype html><body><label>Password<input id="password" type="password" oninput="document.title = this.value"></label></body>`,
+        { headers: { "Content-Type": "text/html" } },
+      );
     }
     if (url.pathname === "/cli-login")
       return new Response(
@@ -1005,18 +1007,20 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
             },
           }),
         );
-        // The page renders its field again while the saved login is read, so the fill fails.
-        await lostContents.executeJavaScript("document.querySelector('#password').id = 'rendered-again'", true);
         const loadsBefore = lostPageLoads;
         const title = () => browser.listTabs().find((tab) => tab.id === lostTab.id)?.title;
         let protectedAfterFill = false;
         if (ending === "after-fill") {
+          // The fork frees the tab at once when a failed fill leaves no value in the page (3290aca164).
+          // A fill whose value stays in the page, and whose reload fails offline, keeps the protection.
+          lostPageOffline = true;
           await runCauseEffect(handoff.submit("fixture-password-118204", true)).catch(() => undefined);
           protectedAfterFill = title() === "Secure authentication";
-          lostPageOffline = true;
           await runCauseEffect(browser.beginTakeover(lostTab.id));
           browser.endTakeover(lostTab.id);
         } else {
+          // The page renders its field again while the saved login is read, so the fill fails.
+          await lostContents.executeJavaScript("document.querySelector('#password').id = 'rendered-again'", true);
           const fill = runCauseEffect(handoff.submit("fixture-password-118204", true)).catch(() => undefined);
           browser.endTakeover(lostTab.id);
           await fill;
@@ -1101,7 +1105,8 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
         typeof result === "string" && result.includes("protected during authentication");
       // While the card is open, the tab stays: a close would leave the card on a tab that is gone.
       const closeWithCardRefused = protectedError(await tool("close_tab", { tabId: heldTab.id }));
-      await heldContents.executeJavaScript("document.querySelector('#password').id = 'rendered-again'", true);
+      // The value stays in the page and its reload fails, so the protection stays (fork 3290aca164).
+      lostPageOffline = true;
       await runCauseEffect(handoff.submit("fixture-password-118204", true)).catch(() => undefined);
       const held = browser.listTabs().find((tab) => tab.id === heldTab.id)?.title === "Secure authentication";
       const snapshotRefused = protectedError(await tool("snapshot", { tabId: heldTab.id }));
