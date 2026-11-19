@@ -141,6 +141,26 @@ merge (rule "Upstream overlap check" in `AGENTS.md`). The branch no longer has t
   aria label, placeholder or title has a code word, or a "code" field in a form that names an
   authenticator app, takes a vault code. The fork's check that a field is visible stays.
 
+## Upstream fixes taken before a merge
+
+On 2026-11-18 these browser tab fixes came from `upstream/main` by `git cherry-pick -x`, before the
+next upstream merge. A server unloaded no hidden agent tab that played muted media, such as YouTube.
+Each commit message names its upstream commit.
+
+| Upstream commit | PR | Change |
+| --- | --- | --- |
+| `f15f980c88` | #10363 | An idle unload releases the evaluate mark of the tab |
+| `8461760ee9` | #10376 | The end of a secure sign-in card frees the tab |
+| `abf6ac60bc` | #10450 | Muted media is not a use, so a hidden tab that plays it pauses and unloads |
+| `662dd982ea` | #11631 | The idle unload skips a tab while its first page loads |
+| `07b5e99673` | #11647 | An action timeout on a page that does not answer frees the tab |
+| `d09e63d9c9` | #12083 | A close of a tab that an earlier operation blocks ends |
+
+At the next upstream merge, upstream's side is the source of truth for these changes. Git can show
+conflicts in `src/backend/browser-host.ts`, `src/backend/browser-tab-operations.ts` and
+`scripts/browser-secret-smoke.ts`. Take upstream's version of these hunks, and keep the fork code
+in the same files: the native control tab, external CDP and the `click-once` offer.
+
 ## Known exceptions
 
 - Channel routines: from upstream v0.71.0 (#6077), a scheduled tick does not start a run while an
