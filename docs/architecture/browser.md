@@ -876,6 +876,31 @@ completion alone cannot release it. Secrets are not retried. Authentication insi
 unclear OAuth account selection, CAPTCHA (after the one checkbox click that a snapshot offers),
 passkeys, and payment confirmation use takeover.
 
+A Vault fill with no person's approval goes only to fields built for its secret, because the agent
+chooses the targets (`BrowserCdpEngine.prepareSecret`, `PreparedBrowserSecret.vaultFillable`).
+Each field passes upstream's per-field rule: a password field for a password, or a code field
+(#8524) for an authenticator code. The fork adds a group rule for a code split into digit boxes:
+`SPLIT_CODE_GROUP_FUNCTION` in `browser-cdp.ts`. The host asks for it only for `method=authenticator`
+with one target for each digit and 6 to 8 digits, and only as the step right after a saved password:
+a Vault password entry records its origin and time on the tab (`BrowserHostTab.vaultPasswordFill`).
+The record must have the same origin and be at most 5 minutes old. The submit of a code that the group
+rule accepted deletes it, also when the fill fails, so a later group, such as a payment step-up, goes
+to the card. A main-frame navigation to another origin deletes it, an idle unload keeps it, and it
+closes with the tab. The per-field rule does not use it. The boxes are unmasked text, tel or number
+inputs that take one character each, have equal widths, and are in one row in target order. Each box
+has its own ordinal name, such as "Digit 3", "Digit 3 of 6" or "3 digit". The container is the first
+ancestor of the boxes whose visible text names an authenticator app. It and each ancestor below it
+have only the boxes as visible text-entry controls and at most 600 characters of text, and its text
+names no email, SMS, phone, WhatsApp or voice call. When the boxes are in a form, it is one form, its
+other controls take no text, and no named, enabled control is between the boxes. The visible text of
+the body is at most 3,000 characters and names no PIN, payment, transfer, amount, approval,
+transaction, withdrawal or wire. The fingerprint does not keep these names, the layout or the text,
+so entry runs the same function again before the first digit. A false result enters nothing and ends
+in takeover. During a Vault fill, the host blocks a navigation whose URL carries the value. For a code
+entered one digit in each box, it also blocks a URL whose query values, and the values of an `a=b&c=d`
+fragment, joined in order, contain the code, as a GET form of the boxes sends it. The rule that no
+named control is between the boxes keeps those values together.
+
 After a saved card is filled, the authenticated server owner can open the live browser view during
 an active takeover to finish bank verification. The Team API derives this permission from the
 authenticated membership, not the request body. Ending takeover revokes the view. Card capture

@@ -374,6 +374,8 @@ export class BrowserCdpEngine {
     wholeSecretInEachField: boolean,
     submission: "on_input" | "enter" | "click",
     submitTarget?: BrowserTarget,
+    /** Also check the digit fields as one split authenticator code group, when a field fails the code rule. */
+    splitCode = false,
   ): Effect.fn.Return<
     {
       enter: (secret: string) => Effect.Effect<void, BrowserOperationError>;
@@ -393,6 +395,12 @@ export class BrowserCdpEngine {
        * the mask and the label text are read here only, because a page can change them as it fills.
        */
       fields: { password: boolean; oneTimeCode: boolean };
+      /**
+       * With `splitCode`, when a field fails the code rule: true when the fields are one split
+       * authenticator code group (`SPLIT_CODE_GROUP_FUNCTION`). `enter` then checks the group again
+       * before it types the first digit.
+       */
+      codeGroup: boolean;
       /**
        * A service worker handled the page's navigation, so its code could come from Cache Storage. Read
        * in the automation world. A worker that the page registers and claims later serves no navigation.
@@ -502,7 +510,15 @@ export class BrowserCdpEngine {
         // A second copy of a password goes only to a password field, so no field shows the value.
         if (wholeSecretInEachField && inputs.length > 1 && !fields.password)
           return yield* browserFailure(new Error("A password and its confirmation must both be password fields."));
-        return { inputs, button, fingerprints, fields, servedByWorker };
+        const codeGroup =
+          splitCode &&
+          !fields.oneTimeCode &&
+          (yield* this.#callOnNodes(
+            send,
+            inputs.map((node) => node.backendNodeId),
+            SPLIT_CODE_GROUP_FUNCTION,
+          ).pipe(Effect.catch(() => Effect.succeed(false)))) === true;
+        return { inputs, button, fingerprints, fields, codeGroup, servedByWorker };
       }),
     );
     if (generation !== this.#navigationGeneration)
@@ -525,6 +541,16 @@ export class BrowserCdpEngine {
                 );
                 if (valid !== true) return yield* browserFailure(new Error("Authentication target changed."));
               }
+              // The fingerprint does not keep the names, layout or text that the group rule read.
+              if (
+                nodes.codeGroup &&
+                (yield* this.#callOnNodes(
+                  send,
+                  nodes.inputs.map((node) => node.backendNodeId),
+                  SPLIT_CODE_GROUP_FUNCTION,
+                )) !== true
+              )
+                return yield* browserFailure(new Error("Authentication target changed."));
               for (const [index, node] of nodes.inputs.entries()) {
                 if (generation !== this.#navigationGeneration)
                   return yield* browserFailure(new Error("Authentication page changed."));
@@ -622,7 +648,7 @@ export class BrowserCdpEngine {
           return !recordValue(scan.exceptionDetails) && recordValue(scan.result)?.value === false;
         }),
       ).pipe(Effect.catch(() => Effect.succeed(false)));
-    return { enter, clear, fields: nodes.fields, servedByWorker: nodes.servedByWorker };
+    return { enter, clear, fields: nodes.fields, codeGroup: nodes.codeGroup, servedByWorker: nodes.servedByWorker };
   });
 
   /**
@@ -3664,6 +3690,45 @@ export class BrowserCdpEngine {
   });
 
   /**
+   * Calls `declaration` in the automation world of the main frame with the nodes as its arguments, in
+   * order. The nodes come from their backend ids, so page code cannot change which nodes it gets.
+   */
+  readonly #callOnNodes = Effect.fn("BrowserCdp.callOnNodes")(function* (
+    this: BrowserCdpEngine,
+    send: SendCommand,
+    backendNodeIds: number[],
+    declaration: string,
+  ): Effect.fn.Return<unknown, BrowserOperationError> {
+    const executionContextId = yield* automationContextId(send);
+    const objectIds: string[] = [];
+    return yield* Effect.gen(function* () {
+      for (const backendNodeId of backendNodeIds) {
+        const resolved = yield* send("DOM.resolveNode", { backendNodeId, executionContextId });
+        const objectId = stringValue(recordValue(resolved.object)?.objectId);
+        if (!objectId) return yield* browserFailure(new Error("Element is no longer attached to the document."));
+        objectIds.push(objectId);
+      }
+      const result = yield* send("Runtime.callFunctionOn", {
+        executionContextId,
+        functionDeclaration: declaration,
+        arguments: objectIds.map((objectId) => ({ objectId })),
+        returnByValue: true,
+      });
+      const exception = recordValue(result.exceptionDetails);
+      if (exception) return yield* browserFailure(new Error(exceptionDescription(exception)));
+      return recordValue(result.result)?.value;
+    }).pipe(
+      Effect.ensuring(
+        Effect.suspend(() =>
+          Effect.forEach(objectIds, (objectId) => send("Runtime.releaseObject", { objectId }).pipe(Effect.ignore), {
+            discard: true,
+          }),
+        ),
+      ),
+    );
+  });
+
+  /**
    * The select that a page rendered in place of one it removed: a connected select with the same option
    * labels at the old center point. A select with the same labels elsewhere, as in the next cart row,
    * is a different control. Null when none matches.
@@ -4106,6 +4171,107 @@ const waitForDomQuietAcrossTargets = Effect.fn("Browser.waitForDomQuietAcrossTar
     return yield* browserFailure(new Error("DOM did not become quiet."));
   }
 });
+
+/**
+ * Runs in the automation world with the digit fields of one code, in target order. True when they are
+ * one split authenticator code group, as a bank page with six boxes named "1 digit" to "6 digit" has:
+ * - 6 to 8 boxes. Each is an enabled, editable, visible text, tel or number input with no mask.
+ * - Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. All
+ *   boxes have the same width within 2 px, and are in one row in target order (or reverse for `rtl`).
+ * - Each box has its own ordinal name for its position, such as "Digit 3", "Digit 3 of 6" or "3rd
+ *   digit", in its aria-label, a label, an aria-labelledby text, its placeholder or its title. The
+ *   per-field rule's exclusion words in its id, name and labels refuse it.
+ * - The container is the first ancestor of the boxes (the body at most) whose visible text names an
+ *   authenticator app. It and each ancestor below it have only the boxes as visible text-entry
+ *   controls and at most 600 characters of text. Its text has no email, SMS, phone, WhatsApp or voice
+ *   call word.
+ * - When a box is in a form, all are in the same form, its other controls take no text, and no named,
+ *   enabled control is between the boxes, so a GET form sends the code as one run of query values.
+ * - The visible text of the whole body is at most 3,000 characters and has no PIN, card reader,
+ *   payment, transfer, amount, approval, transaction, withdrawal or wire word: a sign-in step, not a
+ *   payment step-up.
+ * The other regular expressions of the words are the per-field rule's. Known limits: text in the layout
+ * that a person cannot see (opacity 0, clipped, off-screen) counts as visible, as in the per-field
+ * rule; text and controls in frames and closed shadow roots are not read; before each digit, entry
+ * checks each box only as for every fill.
+ */
+const SPLIT_CODE_GROUP_FUNCTION = `function(...boxes) {
+  const words = (text) => text.replace(/([a-z])([A-Z0-9])/g, '$1 $2').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const count = boxes.length;
+  if (count < 6 || count > 8 || new Set(boxes).size !== count) return false;
+  const shown = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility === 'visible';
+  const rects = [];
+  for (const [index, box] of boxes.entries()) {
+    if (!box.isConnected || box.ownerDocument !== document || box.localName !== 'input' || box.disabled || box.readOnly || !shown(box) || !['text', 'tel', 'number'].includes(box.type) || !['', 'none'].includes(getComputedStyle(box).getPropertyValue('-webkit-text-security'))) return false;
+    const rect = box.getBoundingClientRect();
+    if (box.maxLength !== 1 && (box.hasAttribute('maxlength') || rect.width > 72)) return false;
+    const labels = [...(box.labels ?? [])].map((label) => label.textContent ?? '');
+    const labelledBy = (box.getAttribute('aria-labelledby') ?? '').split(/\\s+/).map((id) => (id && box.getRootNode().getElementById?.(id)?.textContent) || '');
+    const sources = [box.getAttribute('aria-label') ?? '', ...labels, ...labelledBy, box.getAttribute('placeholder') ?? '', box.title];
+    if (/backup|recovery|mail|phone|sms|name|label|promo|coupon|voucher|discount|gift|invite|referral|zip|postal|country|card|cvc|cvv|csc/.test(words([box.id, box.name, ...sources].join(' ')))) return false;
+    const ordinal = sources.some((source) => {
+      const name = words(source).trim();
+      const match = /^(?:digit|character|char) (\\d)(?: of (\\d))?$/.exec(name) ?? /^(\\d)(?:st|nd|rd|th)? (?:digit|character|char)$/.exec(name);
+      return match !== null && Number(match[1]) === index + 1 && (match[2] === undefined || Number(match[2]) === count);
+    });
+    if (!ordinal) return false;
+    rects.push(rect);
+  }
+  const first = rects[0];
+  if (rects.some((rect) => Math.abs(rect.width - first.width) > 2 || Math.abs(rect.top - first.top) > first.height / 2)) return false;
+  // A box in a shadow root goes up to its host. The html element is never the container.
+  const up = (element) => element.parentElement ?? element.parentNode?.host ?? null;
+  const ancestors = (element) => {
+    const found = [];
+    for (let node = up(element); node && node !== document.documentElement; node = up(node)) found.push(node);
+    return found;
+  };
+  const chains = boxes.map(ancestors);
+  const lowest = chains[0].find((ancestor) => chains.every((chain) => chain.includes(ancestor)));
+  if (!lowest) return false;
+  const rtl = getComputedStyle(lowest).direction === 'rtl';
+  if (rects.some((rect, index) => index > 0 && (rtl ? rect.left >= rects[index - 1].left : rect.left <= rects[index - 1].left))) return false;
+  // A hidden textarea, such as the one that reCAPTCHA adds, takes no text from a person.
+  const entry = (element) => shown(element) && (element.localName === 'input' ? !['hidden', 'checkbox', 'radio', 'submit', 'button', 'image', 'reset'].includes(element.type) : ['textarea', 'select'].includes(element.localName) || element.hasAttribute('contenteditable'));
+  const controls = (root) => {
+    const found = [];
+    const visit = (node) => {
+      if (node.shadowRoot) visit(node.shadowRoot);
+      for (const element of node.querySelectorAll('*')) {
+        if (entry(element)) found.push(element);
+        if (element.shadowRoot) visit(element.shadowRoot);
+      }
+    };
+    visit(root);
+    return found;
+  };
+  const onlyBoxes = (found) => found.length === count && found.every((element, index) => element === boxes[index]);
+  const text = (element) => words(element.innerText ?? '');
+  const fits = (element) => onlyBoxes(controls(element)) && text(element).length <= 600;
+  const form = boxes[0].form;
+  if (form || boxes.some((box) => box.form)) {
+    if (!boxes.every((box) => box.form === form)) return false;
+    // Controls joined with form= count. A named control between the boxes splits the code in a GET URL.
+    const elements = [...form.elements];
+    if (!onlyBoxes(elements.filter(entry))) return false;
+    const positions = boxes.map((box) => elements.indexOf(box));
+    const between = elements.slice(Math.min(...positions) + 1, Math.max(...positions));
+    if (between.some((element) => !boxes.includes(element) && element.name && !element.disabled)) return false;
+  }
+  const page = words(document.body?.innerText ?? '');
+  if (!document.body || page.length > 3000 || /\\bpin\\b|card reader|memorable|security number|\\bpay(?:ment|ments|ee|ing)?\\b|transfer|beneficiary|amount|send money|approve|authori[sz]e|transaction|withdraw|wire/.test(page)) return false;
+  const authenticator = /\\bauthenticator\\b|\\bauthentication ?app\\b|\\btotp\\b/;
+  let container = null;
+  for (const ancestor of chains[0].slice(chains[0].indexOf(lowest))) {
+    if (!fits(ancestor)) break;
+    if (authenticator.test(text(ancestor))) {
+      container = ancestor;
+      break;
+    }
+  }
+  if (!container) return false;
+  return !/\\be ?mail(?:ed)?\\b|\\bsms\\b|\\btext (?:message|messaged)\\b|\\btexted\\b|\\bphone\\b|\\bwhatsapp\\b|voice call/.test(text(container));
+}`;
 
 /** Runs in the automation world. Returns true when the document shows the value anywhere a snapshot reads. */
 const SECRET_SCAN_FUNCTION = `function(secret) {

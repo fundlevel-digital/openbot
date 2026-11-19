@@ -42,6 +42,14 @@ export interface BrowserHostTab {
    * stay blocked until a main-frame navigation replaces the document.
    */
   filledCard?: boolean;
+  /**
+   * The origin and time of the last saved password that the Vault entered in this tab. Only the step
+   * right after it, on the same origin and within `SPLIT_CODE_AFTER_PASSWORD_MS`, can fill a split
+   * authenticator code group from the Vault, and only once: the submit of that code deletes it, so a
+   * payment step-up later in the session goes to the card. A main-frame navigation to another origin
+   * deletes it; an idle unload keeps it; it closes with the tab.
+   */
+  vaultPasswordFill?: { origin: string; at: number } | undefined;
   /** A local CDP client registered supplied credentials for this document. Images stay protected. */
   sourceSecretDocument?: boolean;
   /**

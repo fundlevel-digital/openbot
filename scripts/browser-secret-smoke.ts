@@ -91,6 +91,33 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
         </body>`,
         { headers: { "Content-Type": "text/html" } },
       );
+    if (url.pathname === "/split-password")
+      // The password step before the split code. It opens the code step that `next` names.
+      return new Response(
+        `<!doctype html><body><label>Password<input id="split-password" type="password"></label>
+        <button id="split-sign-in" type="button" onclick="location.href = new URLSearchParams(location.search).get('next')">Sign in</button></body>`,
+        { headers: { "Content-Type": "text/html" } },
+      );
+    if (url.pathname === "/split-code" || url.pathname === "/split-code-get") {
+      // A bank's authenticator step: six boxes named "1 digit" to "6 digit" and the app named two levels
+      // above their row. The fork's group rule takes a vault code here. The GET form sends it in parts.
+      const get = url.pathname === "/split-code-get";
+      const tag = get ? "form" : "div";
+      const boxes = Array.from(
+        { length: 6 },
+        (_, index) =>
+          `<div><input id="split-${index}" name="d${index + 1}" aria-label="${index + 1} digit" style="width:40px;height:48px"></div>`,
+      ).join("");
+      return new Response(
+        `<!doctype html><body><${tag} id="sign-in" ${get ? 'method="get" action="/search"' : ""}>
+        <h2>Two-step verification</h2><p>To verify it's you, enter a code from your authenticator app</p>
+        <p>Check your Authenticator app</p><div><div style="display:flex;gap:8px">${boxes}</div></div>
+        <button id="split-back" type="button">Back</button>
+        <button id="split-continue" ${get ? "" : `type="button" onclick="if ([...document.querySelectorAll('#sign-in input')].map((input) => input.value).join('') === '518302') location.href = '/complete'; else document.querySelector('#answer').textContent = 'Wrong code'"`}>Continue</button>
+        </${tag}><p id="answer"></p></body>`,
+        { headers: { "Content-Type": "text/html" } },
+      );
+    }
     if (url.pathname === "/signup")
       // A sign-up form: it sends only when the password and its confirmation match (#6333).
       return new Response(
@@ -571,7 +598,9 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
           checks.push("secure input revokes an existing external CDP connection");
         }
         // Only a real password field may take a vault password with no card; the digit boxes do not
-        // ask for a one-time code, and an email or SMS code never comes from the vault.
+        // ask for a one-time code, and an email or SMS code never comes from the vault. The fork's split
+        // code group rule refuses them too: their row names no authenticator app, and the body has
+        // other text inputs.
         if (handoff.vaultFillable !== (method === "password"))
           throw new Error(`The ${method} fields were classified wrongly for a vault fill.`);
         for (const tool of ["snapshot", "screenshot"]) {
@@ -701,6 +730,114 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
         );
         handoff.cancel();
         if (handoff.vaultFillable !== fillable) throw new Error(`${selector} was classified wrongly for a vault code.`);
+      } finally {
+        await runCauseEffect(browser.close(tab.id));
+      }
+    }
+    // The fork's split code group takes a vault code, one digit in each box, only as the step right after
+    // a saved password fill of the same origin in the same tab, and only once. A GET form of the boxes
+    // would send the code in parts in its URL, so that navigation is blocked and the user finishes.
+    const splitDigits = Array.from({ length: 6 }, (_, index) => ({ kind: "css", selector: `#split-${index}` }));
+    const prepareSplit = (tabId: string, args: Record<string, BrowserJsonValue>) =>
+      runCauseEffect(
+        browser.prepareSecret({
+          namespace: "openbot_browser",
+          tool: "submit_secret",
+          threadId: "secret-thread",
+          ownerAgentId: "secret-agent",
+          turnId: "secret-turn",
+          callId: `split-${randomUUID()}`,
+          arguments: { tabId, ...args },
+        }),
+      );
+    const splitGroup = { method: "authenticator", digits: 6, targets: splitDigits, submission: "on_input" };
+    const unpaired = await runCauseEffect(
+      browser.open("https://authentication.openbot.test/split-code", "secret-thread", "secret-agent"),
+    );
+    try {
+      const handoff = await prepareSplit(unpaired.id, splitGroup);
+      handoff.cancel();
+      if (handoff.vaultFillable)
+        throw new Error("A split code group with no saved password before it was vault-fillable.");
+      checks.push("/split-code: a split code group with no saved password fill before it goes to the card");
+    } finally {
+      await runCauseEffect(browser.close(unpaired.id));
+    }
+    for (const [path, outcome, end] of [
+      ["/split-code", "submitted", "/complete"],
+      ["/split-code-get", "takeover", "/split-code-get"],
+    ] as const) {
+      const tab = await runCauseEffect(
+        browser.open(
+          `https://authentication.openbot.test/split-password?next=${path}`,
+          "secret-thread",
+          "secret-agent",
+        ),
+      );
+      try {
+        const contents = webContents.getAllWebContents().find((entry) => entry.getURL() === tab.url);
+        if (!contents) throw new Error("Missing split code fixture.");
+        await waitForPresentedFrame(contents);
+        const password = await prepareSplit(tab.id, {
+          method: "password",
+          targets: [{ kind: "css", selector: "#split-password" }],
+          submission: "click",
+          submitTarget: { kind: "css", selector: "#split-sign-in" },
+        });
+        if (!password.vaultFillable) {
+          password.cancel();
+          throw new Error("The split code fixture's password field was not vault-fillable.");
+        }
+        if ((await runCauseEffect(password.submit("fixture-split-password-640213", true))) !== "submitted")
+          throw new Error("The saved password fill before the split code did not navigate.");
+        if (new URL(contents.getURL()).pathname !== path) throw new Error(`The password step did not open ${path}.`);
+        await waitForPresentedFrame(contents);
+        if (path === "/split-code") {
+          // Only an authenticator code in one target for each digit can use the group rule.
+          for (const args of [
+            { ...splitGroup, method: "otp" },
+            { ...splitGroup, targets: splitDigits.slice(0, 1) },
+          ]) {
+            const other = await prepareSplit(tab.id, args);
+            other.cancel();
+            if (other.vaultFillable)
+              throw new Error(`A split code group was vault-fillable for ${JSON.stringify(args)}.`);
+          }
+          const failure = await prepareSplit(tab.id, { ...splitGroup, digits: 7 }).then(
+            (handoff) => {
+              handoff.cancel();
+              return false;
+            },
+            () => true,
+          );
+          if (!failure) throw new Error("Six digit targets for a 7-digit code were accepted.");
+          checks.push("/split-code: otp, one target, or a digit count unlike the targets gives no group");
+        }
+        const handoff = await prepareSplit(tab.id, {
+          ...splitGroup,
+          submission: "click",
+          submitTarget: { kind: "css", selector: "#split-continue" },
+        });
+        if (!handoff.vaultFillable) {
+          handoff.cancel();
+          throw new Error(`The split code group of ${path} was not vault-fillable after a saved password.`);
+        }
+        const result = await runCauseEffect(handoff.submit("518302", true));
+        const snapshot = await runCauseEffect(browser.snapshot(tab.id));
+        if (JSON.stringify(snapshot).includes("518302")) throw new Error("A split vault code reached a snapshot.");
+        if (new URL(snapshot.url).pathname !== end || result !== outcome)
+          throw new Error(
+            `A split vault code in ${path} reached ${snapshot.url} (${result}), not ${end} (${outcome}).`,
+          );
+        checks.push(`${path}: split vault code ${outcome === "submitted" ? "signs in" : "in a GET URL is blocked"}`);
+        if (path === "/split-code") {
+          // The code used the saved password's step. A second group on the same origin goes to the card.
+          await contents.loadURL("https://authentication.openbot.test/split-code");
+          const second = await prepareSplit(tab.id, splitGroup);
+          second.cancel();
+          if (second.vaultFillable) throw new Error("A second split code group used the same saved password fill.");
+          checks.push("/split-code: a second split code group after one saved password goes to the card");
+        }
       } finally {
         await runCauseEffect(browser.close(tab.id));
       }

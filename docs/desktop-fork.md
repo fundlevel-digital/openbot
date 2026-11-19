@@ -98,7 +98,12 @@ After an upstream merge or rebase, keep these checks in `desktop-fork.yml`:
 - `bun run test:browser-cdp`: attach the real `agent-browser` CLI to the existing tab, keep its
   session, limit target access, redact secrets, and revoke external access for user control.
 - `scripts/browser-smoke.ts --scenario=secret-handoff`: saved password and authenticator fills,
-  with upstream's code-field rule (#8524).
+  with upstream's code-field rule (#8524) and the fork's split code group rule. A `Digit N` group
+  with no authenticator text stays refused. A Vault code goes one digit to each box of an accepted
+  group, and a GET form of the boxes cannot send the code in its URL.
+- `scripts/browser-otp-fields-e2e.ts`: the code-field rule and the split code group rule on the
+  real engine: accepted and refused groups, one digit for each box, and the entry check of a group
+  that changed after the fill request.
 - `scripts/browser-native-control-e2e.ts`: use real OS input in the same tab between CDP sessions;
   keep the document and sign-in, exclude CDP during native control, and preserve permission gates.
 - `scripts/browser-native-task-permission-e2e.ts`: allow an enabled agent's task to use its own
@@ -140,6 +145,48 @@ merge (rule "Upstream overlap check" in `AGENTS.md`). The branch no longer has t
   before it). Upstream's rule (#8524) applies: a text, tel or number field whose id, name, label,
   aria label, placeholder or title has a code word, or a "code" field in a form that names an
   authenticator app, takes a vault code. The fork's check that a field is visible stays.
+
+## Split authenticator code group
+
+A fork patch on top of upstream's code-field rule (#8524). On 2026-11-16 the owner chose upstream's
+per-field rule (see above). That rule does not change. Upstream refuses a split code group, so a
+bank sign-in with six boxes named "1 digit" to "6 digit" needed a person to type the code.
+
+The fork adds a second way for an authenticator code to fill from the Vault with no person:
+`SPLIT_CODE_GROUP_FUNCTION` in `src/backend/browser-cdp.ts`. The host asks for it only for
+`method=authenticator` with one target for each digit and 6 to 8 digits. All of these must be true:
+
+- The step comes right after a saved password. A Vault password entry records its origin and time on
+  the tab (`BrowserHostTab.vaultPasswordFill`). The record must have the same origin and be at most
+  5 minutes old (`SPLIT_CODE_AFTER_PASSWORD_MS`). The submit of a code that the group rule accepted
+  deletes it, also when the fill fails, so a later group in the session, such as a payment step-up,
+  goes to the card. A main-frame navigation to another origin deletes it, an idle unload keeps it, and
+  it closes with the tab. The per-field rule does not use it.
+- Each box is an enabled, editable, visible text, tel or number input with no mask.
+- Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. The
+  widths are equal within 2 px. The boxes are in one row in target order (reverse for `rtl`).
+- Each box has its own ordinal name for its position, such as "Digit 3", "Digit 3 of 6" or "3 digit",
+  in its aria-label, a label, an aria-labelledby text, its placeholder or its title. The per-field
+  rule's exclusion words refuse the box.
+- The container is the first ancestor of the boxes (the body at most) whose visible text names an
+  authenticator app. It and each ancestor below it have only the boxes as visible text-entry controls
+  and at most 600 characters of text. Its text has no email, SMS, text message, phone, WhatsApp or
+  voice call word.
+- When a box is in a form, all boxes are in that form, its other controls take no text (also controls
+  joined with `form=`), and no named, enabled control is between the first and the last box.
+- The visible text of the whole body is at most 3,000 characters and has no PIN, card reader,
+  memorable, security number, pay, payment, payee, transfer, beneficiary, amount, send money, approve,
+  authorise, transaction, withdraw or wire word.
+
+The fingerprint does not change. Entry runs the same function again before the first digit, and
+a false result enters nothing and ends in takeover. During a Vault fill of a code in digit boxes, the
+host also blocks a URL whose query and fragment values, joined in order, contain the code. The rule
+that no named control is between the boxes keeps a GET form from splitting those values.
+
+Checks: `scripts/browser-otp-fields-e2e.ts` and `scripts/browser-smoke.ts --scenario=secret-handoff`.
+At the next upstream merge, keep the patch while upstream refuses a split code group. Upstream's
+smoke expects the `Digit N` group of its `/login` fixture to be refused; the fork keeps that
+expectation, because that row names no authenticator app and the body has other text inputs.
 
 ## Upstream fixes taken before a merge
 

@@ -487,7 +487,9 @@ export interface PreparedBrowserSecret {
   agentScriptedOrigin: boolean;
   /**
    * True when the target fields are built for this secret: password fields for a password, one-time
-   * code fields for an authenticator code. A field that the agent chose for something else, such as a
+   * code fields for an authenticator code. 6 to 8 digit fields of one split authenticator code group
+   * also take an authenticator code, once, right after a saved password fill of the same origin in
+   * this tab (`BrowserHostTab.vaultPasswordFill`). A field that the agent chose for something else, such as a
    * search box, could put the value in a URL the agent reads.
    */
   vaultFillable: boolean;
@@ -551,8 +553,12 @@ function urlOrigin(value: string): string | null {
   return URL.canParse(value) ? new URL(value).origin : null;
 }
 
-/** Whether `url` carries `secret` as typed, percent-encoded, or form-encoded. */
-function urlCarriesSecret(url: string, secret: string): boolean {
+/**
+ * Whether `url` carries `secret` as typed, percent-encoded, or form-encoded. For a `split` code, typed
+ * one digit in each field, also when its query values and the values of an `a=b&c=d` fragment, joined
+ * in order, contain it, as a GET form of digit fields sends it.
+ */
+function urlCarriesSecret(url: string, secret: string, split: boolean): boolean {
   if (url.includes(secret)) return true;
   try {
     if (decodeURIComponent(url.replaceAll("+", " ")).includes(secret)) return true;
@@ -560,7 +566,12 @@ function urlCarriesSecret(url: string, secret: string): boolean {
     // A malformed escape elsewhere in the URL; the query values below still decode.
   }
   try {
-    return [...new URL(url).searchParams.values()].some((value) => value.includes(secret));
+    const parsed = new URL(url);
+    const values = [...parsed.searchParams.values()];
+    if (values.some((value) => value.includes(secret))) return true;
+    if (!split) return false;
+    if (parsed.hash.includes("=")) values.push(...new URLSearchParams(parsed.hash.slice(1)).values());
+    return values.join("").includes(secret);
   } catch {
     return false;
   }
@@ -588,6 +599,8 @@ export type { BrowserTeachStep };
 const TEACH_MAX_STEPS = 200;
 /** A teach recording takes no step after this time. */
 const TEACH_MAX_DURATION_MS = 10 * 60 * 1000;
+/** How long after a saved password fill the next step of its origin can fill a split code group. */
+const SPLIT_CODE_AFTER_PASSWORD_MS = 5 * 60 * 1000;
 interface BrowserTeachRecording {
   holder: BrowserUserControlHolder;
   startedAt: number;
@@ -1783,6 +1796,14 @@ export class BrowserHost {
                 args.method === "password",
                 args.submission,
                 args.submitTarget,
+                // One digit field for each digit of a TOTP length can be a split code group, but only as
+                // the step right after a saved password of this origin in this tab.
+                args.method === "authenticator" &&
+                  args.targets.length === args.digits &&
+                  args.digits >= 6 &&
+                  args.digits <= 8 &&
+                  tab.vaultPasswordFill?.origin === url.origin &&
+                  Date.now() - tab.vaultPasswordFill.at <= SPLIT_CODE_AFTER_PASSWORD_MS,
               ),
               10_000,
               "Authentication target resolution timed out.",
@@ -1798,7 +1819,7 @@ export class BrowserHost {
         vaultFillable:
           args.method === "password"
             ? entry.fields.password
-            : args.method === "authenticator" && entry.fields.oneTimeCode,
+            : args.method === "authenticator" && (entry.fields.oneTimeCode || entry.codeGroup),
         cancel: () => {
           if (tab.secret === protection && !protection.submitted) {
             tab.secret = undefined;
@@ -1808,6 +1829,8 @@ export class BrowserHost {
         },
         submit: (secret: string, vault: boolean) =>
           Effect.gen({ self: this }, function* (): Effect.fn.Return<"submitted" | "takeover", BrowserOperationError> {
+            // A saved password permits one split code group, also when this fill fails.
+            if (entry.codeGroup) tab.vaultPasswordFill = undefined;
             if (tab.secret !== protection || protection.submitted)
               return yield* browserFailure(new Error(sourceText("error.backend.authExpired")));
             // A connected page can navigate to the secret's site while the card is open.
@@ -1827,7 +1850,8 @@ export class BrowserHost {
             let stopWaiting = () => {};
             const contents = tab.contents;
             const blockLeak = (event: ElectronEvent<WebContentsWillFrameNavigateEventParams>) => {
-              if (!urlCarriesSecret(event.url, secret)) return;
+              // Digit fields take one digit each, so a GET form sends the code in parts.
+              if (!urlCarriesSecret(event.url, secret, args.method !== "password" && args.targets.length > 1)) return;
               leaked = true;
               event.preventDefault();
               stopWaiting();
@@ -1848,6 +1872,8 @@ export class BrowserHost {
                   true,
                 ),
               );
+              if (vault && args.method === "password" && Result.isSuccess(entered))
+                tab.vaultPasswordFill = { origin: url.origin, at: Date.now() };
               // A failed entry can leave a value in the page. Let its owned commands drain before
               // cleanup, and keep inspection blocked until the fields are cleared or the page reloads.
               yield* this.#enqueue(
@@ -4156,6 +4182,8 @@ export class BrowserHost {
         tab.secretDocument = false;
         contents.navigationHistory.clear();
       }
+      // The code step of a sign-in stays on its origin. A same-origin step keeps the saved-password mark.
+      if (tab.vaultPasswordFill && urlOrigin(url) !== tab.vaultPasswordFill.origin) tab.vaultPasswordFill = undefined;
       // The next document has no card in its fields. History would bring the filled page back.
       if (tab.filledCard) {
         tab.filledCard = false;

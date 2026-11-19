@@ -1,6 +1,8 @@
 // Drives the real secure-field detector and entry guard in an isolated Electron browser. The code
 // field rule is upstream's (#8524): a text, tel or number field whose id, name, label, aria label or
-// placeholder has a code word, and no backup, name, label, card, postal or similar word.
+// placeholder has a code word, and no backup, name, label, card, postal or similar word. The fork adds
+// a split code group rule: 6 to 8 one-character boxes with ordinal names, in a container that names an
+// authenticator app and has no other text input. Entry checks the group again.
 // Run: bun scripts/browser-otp-fields-e2e.ts [--baseline]
 // Report: .openbot-build/browser-otp-fields-e2e/report.json
 import assert from "node:assert/strict";
@@ -44,6 +46,224 @@ const PAGE = `<!doctype html><meta charset="utf-8"><title>Authentication fixture
 <input id="hidden-otp" type="hidden">
 <label for="invisible">Authenticator code</label><input id="invisible" type="tel" style="display:none">
 <script>window.trustedInputs = 0; addEventListener('input', event => { if (event.isTrusted) window.trustedInputs++; });</script>`;
+
+// The fork's split authenticator code group: a bank sign-in shows six boxes named "1 digit" to "6 digit",
+// with the authenticator text two levels above their row and no form.
+const BANK_TEXT =
+  "<p>To verify it's you, enter a code from your authenticator app</p><p>Check your Authenticator app</p>";
+interface GroupOptions {
+  count?: number;
+  cell?: (index: number, count: number) => string;
+  text?: string;
+  form?: boolean;
+  /** Attributes of the form, such as `method="get"`. */
+  formAttributes?: string;
+  extra?: string;
+  style?: string;
+  /** HTML above the container, in the same `main` element. */
+  before?: string;
+  /** HTML after the `main` element, in the body. */
+  after?: string;
+}
+function groupPage({
+  count = 6,
+  cell = (index) => `<input id="box-${index}" aria-label="${index + 1} digit">`,
+  text = BANK_TEXT,
+  form = false,
+  formAttributes = "",
+  extra = "",
+  style = "",
+  before = "",
+  after = "",
+}: GroupOptions = {}): string {
+  const tag = form ? "form" : "div";
+  const cells = Array.from({ length: count }, (_, index) => `<div class="cell">${cell(index, count)}</div>`).join("");
+  return `<!doctype html><meta charset="utf-8"><title>Code group fixture</title>
+<style>.row{display:flex;gap:8px}.cell input{width:40px;height:48px}${style}</style>
+<main>${before}<${tag} id="container" ${form ? formAttributes : ""}><h2>Two-step verification</h2>${text}<div class="group"><div class="row" id="row">${cells}</div></div>${extra}
+<button type="button" id="back">Back</button><button type="button" id="continue">Continue</button></${tag}>
+<footer><a href="#privacy">Privacy</a> <a href="#security">Security</a> <a href="#help">Help</a></footer></main>${after}
+<script>window.trustedInputs = 0; addEventListener('input', event => { if (event.isTrusted) window.trustedInputs++; });</script>`;
+}
+const ariaCell =
+  (labels: number[], attributes = "") =>
+  (index: number) =>
+    `<input id="box-${index}" aria-label="${labels[index]} digit" ${attributes}>`;
+/** Each case: the page, the number of boxes that the agent names, and whether the group rule accepts. */
+const GROUPS: Record<string, { page: string; targets: number; accepted: boolean }> = {
+  bank: { page: groupPage(), targets: 6, accepted: true },
+  form: { page: groupPage({ form: true }), targets: 6, accepted: true },
+  labels: {
+    page: groupPage({
+      cell: (index, count) =>
+        `<label for="box-${index}">Digit ${index + 1} of ${count}</label><input id="box-${index}" maxlength="1">`,
+    }),
+    targets: 6,
+    accepted: true,
+  },
+  eight: {
+    page: groupPage({
+      count: 8,
+      cell: (index, count) => `<input id="box-${index}" type="tel" aria-label="Character ${index + 1} of ${count}">`,
+    }),
+    targets: 8,
+    accepted: true,
+  },
+  email: {
+    page: groupPage({ text: "<p>Enter the code that we emailed to you, or a code from your authenticator app</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  sms: {
+    page: groupPage({ text: "<p>Enter the code from the SMS that we sent, or from your authenticator app</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  "text-message": {
+    page: groupPage({ text: "<p>Enter the code from the text message, or from your authenticator app</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  "no-authenticator": { page: groupPage({ text: "<p>Enter your verification code</p>" }), targets: 6, accepted: false },
+  "hidden-authenticator": {
+    page: groupPage({ text: "<p>Enter your verification code</p><p hidden>Use your authenticator app</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  "other-input": {
+    page: groupPage({ extra: '<input id="other" type="text" aria-label="Comment">' }),
+    targets: 6,
+    accepted: false,
+  },
+  textarea: { page: groupPage({ extra: '<textarea id="note"></textarea>' }), targets: 6, accepted: false },
+  "seventh-box": { page: groupPage({ count: 7 }), targets: 6, accepted: false },
+  "out-of-order": { page: groupPage({ cell: ariaCell([1, 3, 2, 4, 5, 6]) }), targets: 6, accepted: false },
+  gap: { page: groupPage({ cell: ariaCell([1, 2, 3, 5, 6, 7]) }), targets: 6, accepted: false },
+  // The agent names 5 of 6 boxes: fewer than 6 targets.
+  "count-5-of-6-boxes": { page: groupPage(), targets: 5, accepted: false },
+  five: { page: groupPage({ count: 5 }), targets: 5, accepted: false },
+  nine: { page: groupPage({ count: 9 }), targets: 9, accepted: false },
+  masked: {
+    page: groupPage({ extra: "<style>#box-2{-webkit-text-security:disc}</style>" }),
+    targets: 6,
+    accepted: false,
+  },
+  password: {
+    page: groupPage({ cell: (index) => ariaCell([1, 2, 3, 4, 5, 6], index === 2 ? 'type="password"' : "")(index) }),
+    targets: 6,
+    accepted: false,
+  },
+  "maxlength-2": {
+    page: groupPage({ cell: ariaCell([1, 2, 3, 4, 5, 6], 'maxlength="2"') }),
+    targets: 6,
+    accepted: false,
+  },
+  wide: { page: groupPage({ style: ".cell input{width:100px}" }), targets: 6, accepted: false },
+  "two-rows": {
+    page: groupPage({ style: ".row{display:grid;grid-template-columns:repeat(3,48px)}" }),
+    targets: 6,
+    accepted: false,
+  },
+  unequal: { page: groupPage({ style: "#box-3{width:60px}" }), targets: 6, accepted: false },
+  "excluded-name": {
+    page: groupPage({ cell: (index) => ariaCell([1, 2, 3, 4, 5, 6], `name="smsDigit${index + 1}"`)(index) }),
+    targets: 6,
+    accepted: false,
+  },
+  payment: {
+    page: groupPage({ text: "<p>Approve this payment with a code from your authenticator app</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  pin: {
+    page: groupPage({ text: "<p>Enter your PIN or a code from your authenticator app</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  long: {
+    page: groupPage({ text: `${BANK_TEXT}<p>${"Keep your account safe. ".repeat(30)}</p>` }),
+    targets: 6,
+    accepted: false,
+  },
+  "heading-above-form": {
+    page: groupPage({
+      form: true,
+      before: "<h1>Use your authenticator app</h1>",
+      text: "<p>Enter the 6-digit code</p>",
+    }),
+    targets: 6,
+    accepted: true,
+  },
+  // reCAPTCHA adds a hidden textarea. The body is the container here.
+  "hidden-textarea-body": {
+    page: groupPage({
+      text: "<p>Enter the 6-digit code</p>",
+      after: '<p>Use your authenticator app</p><textarea style="display:none"></textarea>',
+    }),
+    targets: 6,
+    accepted: true,
+  },
+  "payment-outside-container": {
+    page: groupPage({ before: "<p>Review transfer: amount 5,000</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  "long-body": {
+    page: groupPage({ after: `<p>${"Keep your account safe. ".repeat(140)}</p>` }),
+    targets: 6,
+    accepted: false,
+  },
+  "get-hidden-between": {
+    page: groupPage({
+      form: true,
+      formAttributes: 'method="get" action="/next"',
+      cell: (index) =>
+        `${index === 3 ? '<input type="hidden" name="s" value="x">' : ""}<input id="box-${index}" name="d${index + 1}" aria-label="${index + 1} digit">`,
+    }),
+    targets: 6,
+    accepted: false,
+  },
+  "get-hidden-outside": {
+    page: groupPage({
+      form: true,
+      formAttributes: 'method="get" action="/next"',
+      text: `${BANK_TEXT}<input type="hidden" name="state" value="x">`,
+      extra: '<input type="hidden" name="nonce" value="y">',
+      cell: (index) => `<input id="box-${index}" name="d${index + 1}" aria-label="${index + 1} digit">`,
+    }),
+    targets: 6,
+    accepted: true,
+  },
+  "box-in-other-form": {
+    page: groupPage({
+      cell: (index) => ariaCell([1, 2, 3, 4, 5, 6], index === 3 ? 'form="elsewhere"' : "")(index),
+      after: '<form id="elsewhere"></form>',
+    }),
+    targets: 6,
+    accepted: false,
+  },
+  phone: {
+    page: groupPage({ text: "<p>Enter a code from your authenticator app or your phone</p>" }),
+    targets: 6,
+    accepted: false,
+  },
+  // In a right-to-left row, the first box is on the right.
+  rtl: { page: groupPage({ style: ".row{direction:rtl}" }), targets: 6, accepted: true },
+  "rtl-left-to-right": {
+    page: groupPage({ style: ".row{direction:rtl;flex-direction:row-reverse}" }),
+    targets: 6,
+    accepted: false,
+  },
+  // The per-field rule accepts these boxes, so the group rule, which refuses the SMS text, does not run.
+  "one-time-code": {
+    page: groupPage({
+      cell: (index) => `<input id="box-${index}" autocomplete="one-time-code" maxlength="1">`,
+      text: "<p>Enter the code from the SMS that we sent, or from your authenticator app</p>",
+    }),
+    targets: 6,
+    accepted: false,
+  },
+};
 
 if (process.argv.includes("--electron-worker")) await runWorker();
 else await runHarness();
@@ -133,13 +353,13 @@ async function runWorker(): Promise<void> {
     show: false,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
-  await window.webContents.session.protocol.handle(
-    "https",
-    (request) =>
-      new Response(new URL(request.url).origin === ORIGIN ? PAGE : "Not found", {
-        headers: { "Content-Type": "text/html" },
-      }),
-  );
+  await window.webContents.session.protocol.handle("https", (request) => {
+    const url = new URL(request.url);
+    const group = url.pathname.startsWith("/group/") ? GROUPS[url.pathname.slice("/group/".length)] : undefined;
+    return new Response(url.origin !== ORIGIN ? "Not found" : (group?.page ?? PAGE), {
+      headers: { "Content-Type": "text/html" },
+    });
+  });
   const engine = new BrowserCdpEngine(window.webContents);
   const checks: string[] = [];
   const report: FixtureReport = {
@@ -231,6 +451,71 @@ async function runWorker(): Promise<void> {
     await load();
     await assert.rejects(Effect.runPromise(stale.enter(CODE)), "A replacement document permitted stale entry.");
     checks.push("A replacement document blocks stale entry");
+
+    const loadGroup = (name: string) => window.loadURL(`${ORIGIN}/group/${name}`);
+    const prepareGroup = (count: number, splitCode = true) =>
+      Effect.runPromise(
+        engine.prepareSecret(
+          Array.from({ length: count }, (_, index) => ({ kind: "css", selector: `#box-${index}` })),
+          ORIGIN,
+          false,
+          "on_input",
+          undefined,
+          splitCode,
+        ),
+      );
+    const boxValues = () => runPage("[...document.querySelectorAll('.cell input')].map(input => input.value).join('')");
+    for (const [name, { targets, accepted }] of Object.entries(GROUPS)) {
+      await loadGroup(name);
+      assert.equal((await prepareGroup(targets)).codeGroup, accepted, `The code group was classified wrongly: ${name}`);
+      checks.push(`group ${name}: ${accepted ? "accepted" : "refused"}`);
+    }
+    await loadGroup("bank");
+    assert.equal((await prepareGroup(6, false)).codeGroup, false, "The group rule ran with no host request.");
+    checks.push("group bank: no group check without the host's flag");
+
+    // One digit goes to each box.
+    for (const name of ["bank", "one-time-code"]) {
+      await loadGroup(name);
+      const group = await prepareGroup(6);
+      assert.equal(
+        group.codeGroup || group.fields.oneTimeCode,
+        true,
+        `The code group did not take a vault code: ${name}`,
+      );
+      await Effect.runPromise(group.enter(CODE));
+      assert.equal(await boxValues(), CODE, `The code did not go one digit to each box: ${name}`);
+      assert.equal(
+        await runPage("window.trustedInputs"),
+        6,
+        `Entry did not send one trusted input to each box: ${name}`,
+      );
+      assert.equal(await Effect.runPromise(group.clear(CODE)), true, `Entry did not clear the boxes: ${name}`);
+      checks.push(
+        `group ${name}: ${name === "bank" ? "the group rule" : "the per-field rule, with no group check,"} fills one digit in each box`,
+      );
+    }
+
+    // The group is checked again before the first digit goes in.
+    for (const [name, mutation] of [
+      ["bank", "document.querySelector('#box-2').setAttribute('aria-label', 'Search')"],
+      ["labels", "document.querySelector('label[for=box-1]').textContent = 'Promo 2'"],
+      ["bank", "document.querySelector('#box-4').maxLength = 2"],
+      [
+        "bank",
+        "document.querySelector('#container').append(Object.assign(document.createElement('input'), { id: 'added' }))",
+      ],
+      ["bank", "document.querySelector('#container p').textContent = 'Enter the code from the SMS that we sent'"],
+      ["bank", "const row = document.querySelector('#row'); row.append(row.firstElementChild)"],
+    ] as const) {
+      await loadGroup(name);
+      const group = await prepareGroup(6);
+      assert.equal(group.codeGroup, true, `The code group was not accepted before a change: ${name}`);
+      await runPage(mutation);
+      await assert.rejects(Effect.runPromise(group.enter(CODE)), `A changed code group permitted entry: ${mutation}`);
+      assert.equal(await boxValues(), "", `A refused code group entry changed a box: ${mutation}`);
+      checks.push(`group ${name}: a change blocks entry: ${mutation}`);
+    }
     report.passed = true;
   } catch (cause) {
     report.error = cause instanceof Error ? cause.message : "The authentication checks failed.";
