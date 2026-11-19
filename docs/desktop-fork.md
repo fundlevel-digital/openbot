@@ -211,8 +211,10 @@ The fork adds a second way for an authenticator code to fill from the Vault with
   not entered yet.
 - No box is in a frame. The group rule runs only in the main frame's automation world.
 - Each box is an enabled, editable, visible text, tel or number input with no mask.
-- Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. The
-  widths are equal within 2 px. The boxes are in one row in target order (reverse for `rtl`).
+- Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. A box
+  whose `maxlength` is the number of boxes also passes when it is at most 72 CSS px wide, because it
+  also takes the whole code from a paste or code autofill. This can be any box. The bank page has
+  `maxlength="6"` on its first box only. The widths are equal within 2 px. The boxes are in one row in target order (reverse for `rtl`).
 - Each box has its own ordinal name for its position, such as "Digit 3", "Digit 3 of 6" or "3 digit",
   in its aria-label, a label, an aria-labelledby text, its placeholder or its title. The per-field
   rule's exclusion words refuse the box.

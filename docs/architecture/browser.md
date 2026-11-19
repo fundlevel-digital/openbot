@@ -932,7 +932,9 @@ a group. The host spreads the code over the boxes, one digit in each. The submit
 rule accepted deletes it, also when the fill fails, so a later group, such as a payment step-up, goes
 to the card. A main-frame navigation to another origin deletes it, an idle unload keeps it, and it
 closes with the tab. The per-field rule does not use it. The boxes are unmasked text, tel or number
-inputs that take one character each, have equal widths, and are in one row in target order. Each box
+inputs that take one character each, have equal widths, and are in one row in target order. A box
+that also takes the whole code (its `maxlength` is the number of boxes) passes when it is at most
+72 CSS px wide. Each box
 has its own ordinal name, such as "Digit 3", "Digit 3 of 6" or "3 digit". The container is the first
 ancestor of the boxes whose visible text names an authenticator app. It and each ancestor below it
 have only the boxes as visible text-entry controls and at most 600 characters of text, and its text

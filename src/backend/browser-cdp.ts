@@ -4536,8 +4536,11 @@ const waitForDomQuietAcrossTargets = Effect.fn("Browser.waitForDomQuietAcrossTar
  * Runs in the automation world with the digit fields of one code, in target order. True when they are
  * one split authenticator code group, as a bank page with six boxes named "1 digit" to "6 digit" has:
  * - 6 to 8 boxes. Each is an enabled, editable, visible text, tel or number input with no mask.
- * - Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. All
- *   boxes have the same width within 2 px, and are in one row in target order (or reverse for `rtl`).
+ * - Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. A box
+ *   whose `maxlength` is the number of boxes also passes when it is at most 72 CSS px wide: it can also
+ *   take the whole code from a paste or code autofill. This can be any box, because some pages give
+ *   each box the whole-code length so that a paste works in each box. All boxes have the same width
+ *   within 2 px, and are in one row in target order (or reverse for `rtl`).
  * - Each box has its own ordinal name for its position, such as "Digit 3", "Digit 3 of 6" or "3rd
  *   digit", in its aria-label, a label, an aria-labelledby text, its placeholder or its title. The
  *   per-field rule's exclusion words in its id, name and labels refuse it.
@@ -4564,7 +4567,7 @@ const SPLIT_CODE_GROUP_FUNCTION = `function(...boxes) {
   for (const [index, box] of boxes.entries()) {
     if (!box.isConnected || box.ownerDocument !== document || box.localName !== 'input' || box.disabled || box.readOnly || !shown(box) || !['text', 'tel', 'number'].includes(box.type) || !['', 'none'].includes(getComputedStyle(box).getPropertyValue('-webkit-text-security'))) return false;
     const rect = box.getBoundingClientRect();
-    if (box.maxLength !== 1 && (box.hasAttribute('maxlength') || rect.width > 72)) return false;
+    if (box.maxLength !== 1 && ((box.hasAttribute('maxlength') && box.maxLength !== count) || rect.width > 72)) return false;
     const labels = [...(box.labels ?? [])].map((label) => label.textContent ?? '');
     const labelledBy = (box.getAttribute('aria-labelledby') ?? '').split(/\\s+/).map((id) => (id && box.getRootNode().getElementById?.(id)?.textContent) || '');
     const sources = [box.getAttribute('aria-label') ?? '', ...labels, ...labelledBy, box.getAttribute('placeholder') ?? '', box.title];

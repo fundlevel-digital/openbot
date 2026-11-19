@@ -425,7 +425,7 @@ function enteredVaultItem(
 
 /** The fork's split code group rule (`SPLIT_CODE_GROUP_FUNCTION`), for the agent's `field-kind` reason. */
 const SPLIT_CODE_GROUP_NOTE =
-  'Right after a saved password fill on this tab, 6 to 8 one-character digit fields in one row are code fields when each one has its own ordinal name, such as "Digit 1" or "1 digit", their container has no other text input, names an authenticator app, and has no email, SMS, or phone words, and the page has no PIN, payment, or transfer words.';
+  'Right after a saved password fill on this tab, 6 to 8 one-character digit fields in one row are code fields when each one has its own ordinal name, such as "Digit 1" or "1 digit", their container has no other text input, names an authenticator app, and has no email, SMS, or phone words, and the page has no PIN, payment, or transfer words. When the targets are separate digit fields, try one time with only the first digit field as the target: many pages take the whole code in that field and spread it over the fields.';
 
 /** The secure input failed and the tab went to the user, so the password typed in the card was not kept. */
 const TYPED_PASSWORD_NOT_SAVED =

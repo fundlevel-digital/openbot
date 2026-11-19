@@ -2,7 +2,8 @@
 // field rule is upstream's (#8524): a text, tel or number field whose id, name, label, aria label or
 // placeholder has a code word, and no backup, name, label, card, postal or similar word. The fork adds
 // a split code group rule: 6 to 8 one-character boxes with ordinal names, in a container that names an
-// authenticator app and has no other text input. Entry checks the group again.
+// authenticator app and has no other text input. A narrow box can also take the whole code. Entry
+// checks the group again.
 // Run: bun scripts/browser-otp-fields-e2e.ts [--baseline]
 // Report: .openbot-build/browser-otp-fields-e2e/report.json
 import assert from "node:assert/strict";
@@ -89,8 +90,28 @@ const ariaCell =
   (labels: number[], attributes = "") =>
   (index: number) =>
     `<input id="box-${index}" aria-label="${labels[index]} digit" ${attributes}>`;
-/** Each case: the page, the number of boxes that the agent names, and whether the group rule accepts. */
-const GROUPS: Record<string, { page: string; targets: number; accepted: boolean }> = {
+// A copy of the real bank page, as its owner read it: no form, no ids, and the first box also takes the
+// whole code from a paste or code autofill. The row has no text; the div above it names the app.
+const REAL_BANK_PAGE = `<!doctype html><meta charset="utf-8"><title>Sign in</title>
+<style>.boxes{display:flex;gap:8px}.boxes input{box-sizing:border-box;width:66px;height:56px}</style>
+<header>Online Banking</header>
+<div><h2>Check your Authenticator app</h2><p>To verify it's you, enter a code from your authenticator app</p><div class="boxes">${Array.from(
+  { length: 6 },
+  (_, index) =>
+    `<input type="tel" inputmode="numeric" name="token-input-${index + 1}" aria-label="${index + 1} digit" ${index === 0 ? 'maxlength="6" autocomplete="one-time-code"' : 'maxlength="1" autocomplete="off"'}>`,
+).join("")}</div><button type="button">Back</button><button type="button">Continue</button></div>
+<footer>Privacy Terms Help</footer>
+<textarea class="g-recaptcha-response" style="display:none"></textarea>
+<iframe title="reCAPTCHA" src="about:blank" width="256" height="60"></iframe>
+<script>window.trustedInputs = 0; addEventListener('input', event => { if (event.isTrusted) window.trustedInputs++; });</script>`;
+/** The first box of a whole-code case takes the length of the code. */
+const wholeCodeCell = (maxLength: number) => (index: number) =>
+  ariaCell([1, 2, 3, 4, 5, 6], index === 0 ? `maxlength="${maxLength}"` : 'maxlength="1"')(index);
+/**
+ * Each case: the page, the number of boxes that the agent names, whether the group rule accepts, and
+ * the CSS selector of each box (from 0) when the boxes have no id.
+ */
+const GROUPS: Record<string, { page: string; targets: number; accepted: boolean; box?: (index: number) => string }> = {
   bank: { page: groupPage(), targets: 6, accepted: true },
   form: { page: groupPage({ form: true }), targets: 6, accepted: true },
   labels: {
@@ -158,6 +179,24 @@ const GROUPS: Record<string, { page: string; targets: number; accepted: boolean 
     targets: 6,
     accepted: false,
   },
+  "real-bank": {
+    page: REAL_BANK_PAGE,
+    targets: 6,
+    accepted: true,
+    box: (index) => `input[name="token-input-${index + 1}"]`,
+  },
+  // Each box takes the whole code, so a paste works in each box.
+  "maxlength-6-each": {
+    page: groupPage({ cell: ariaCell([1, 2, 3, 4, 5, 6], 'maxlength="6"'), style: ".cell input{width:60px}" }),
+    targets: 6,
+    accepted: true,
+  },
+  "maxlength-6-wide": {
+    page: groupPage({ cell: wholeCodeCell(6), style: ".cell input{width:120px}" }),
+    targets: 6,
+    accepted: false,
+  },
+  "maxlength-7-of-6": { page: groupPage({ cell: wholeCodeCell(7) }), targets: 6, accepted: false },
   wide: { page: groupPage({ style: ".cell input{width:100px}" }), targets: 6, accepted: false },
   "two-rows": {
     page: groupPage({ style: ".row{display:grid;grid-template-columns:repeat(3,48px)}" }),
@@ -456,32 +495,43 @@ async function runWorker(): Promise<void> {
     checks.push("A replacement document blocks stale entry");
 
     const loadGroup = (name: string) => window.loadURL(`${ORIGIN}/group/${name}`);
-    const prepareGroup = (count: number, splitCode = true) =>
+    const idBox = (index: number) => `#box-${index}`;
+    const prepareGroup = (count: number, splitCode = true, box = idBox) =>
       Effect.runPromise(
         engine.prepareSecret(
-          Array.from({ length: count }, (_, index) => ({ kind: "css", selector: `#box-${index}` })),
+          Array.from({ length: count }, (_, index) => ({ kind: "css", selector: box(index) })),
           "on_input",
           undefined,
           splitCode,
         ),
       );
-    const boxValues = () => runPage("[...document.querySelectorAll('.cell input')].map(input => input.value).join('')");
-    for (const [name, { targets, accepted }] of Object.entries(GROUPS)) {
+    /** The value of each box, in target order. */
+    const boxValues = async (box = idBox): Promise<string[]> =>
+      runPage(
+        `${JSON.stringify(Array.from({ length: 6 }, (_, index) => box(index)))}.map(selector => document.querySelector(selector).value)`,
+      );
+    for (const [name, { targets, accepted, box }] of Object.entries(GROUPS)) {
       await loadGroup(name);
-      assert.equal((await prepareGroup(targets)).codeGroup, accepted, `The code group was classified wrongly: ${name}`);
+      assert.equal(
+        (await prepareGroup(targets, true, box)).codeGroup,
+        accepted,
+        `The code group was classified wrongly: ${name}`,
+      );
       checks.push(`group ${name}: ${accepted ? "accepted" : "refused"}`);
     }
     await loadGroup("bank");
     assert.equal((await prepareGroup(6, false)).codeGroup, false, "The group rule ran with no host request.");
     checks.push("group bank: no group check without the host's flag");
 
-    // One digit goes to each box. The host spreads the code over the boxes, as `BrowserHost.prepareSecret` does.
-    for (const name of ["bank", "one-time-code"]) {
+    // One digit goes to each box, also to a box that takes the whole code. The host spreads the code over
+    // the boxes, as `BrowserHost.prepareSecret` does.
+    for (const name of ["bank", "real-bank", "one-time-code"]) {
+      const box = GROUPS[name]?.box;
       await loadGroup(name);
-      const group = await prepareGroup(6);
+      const group = await prepareGroup(6, true, box);
       assert.equal(group.codeGroup || codeFields(group), true, `The code group did not take a vault code: ${name}`);
       await Effect.runPromise(group.enter([...CODE]));
-      assert.equal(await boxValues(), CODE, `The code did not go one digit to each box: ${name}`);
+      assert.deepEqual(await boxValues(box), [...CODE], `The code did not go one digit to each box: ${name}`);
       assert.equal(
         await runPage("window.trustedInputs"),
         6,
@@ -489,7 +539,7 @@ async function runWorker(): Promise<void> {
       );
       assert.equal(await Effect.runPromise(group.clear([CODE])), true, `Entry did not clear the boxes: ${name}`);
       checks.push(
-        `group ${name}: ${name === "bank" ? "the group rule" : "the per-field rule, with no group check,"} fills one digit in each box`,
+        `group ${name}: ${name === "one-time-code" ? "the per-field rule, with no group check," : "the group rule"} fills one digit in each box`,
       );
     }
 
@@ -513,7 +563,7 @@ async function runWorker(): Promise<void> {
         Effect.runPromise(group.enter([...CODE])),
         `A changed code group permitted entry: ${mutation}`,
       );
-      assert.equal(await boxValues(), "", `A refused code group entry changed a box: ${mutation}`);
+      assert.equal((await boxValues()).join(""), "", `A refused code group entry changed a box: ${mutation}`);
       checks.push(`group ${name}: a change blocks entry: ${mutation}`);
     }
     report.passed = true;
