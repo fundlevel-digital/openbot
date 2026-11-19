@@ -11,5 +11,8 @@
 
 ### Fixed
 
+- Agents no longer ask again for a key that the user pasted: they save it, as in upstream. The agent
+  guidance no longer names `ask_ui` forms and lists that no longer exist, and its browser rules are
+  shorter.
 - Global search no longer shows the memory limit of a server with unlimited memory storage. Server
   settings also hide the limit there after upstream moved it to the Memory section.

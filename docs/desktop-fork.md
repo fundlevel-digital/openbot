@@ -143,6 +143,34 @@ Fixes after the conflicts:
 - `scripts/plan-continuation-e2e.ts`: the MCP sign-in fixture now publishes OAuth metadata. Upstream
   #10975 reads a 401 on every path, the metadata included, as a key server.
 
+On 2026-11-19 fork `main` (`a7daac0630`: the whole-code box of a split code group and the
+first-digit-field retry text) was merged into this branch.
+
+### Agent guidance after the merge
+
+Text only, no behavior change, in `agent/developer-instructions.ts`, `agent/tool-guidance.ts` and the
+fork's descriptions in `browser-tools.ts`:
+
+- Removed stale fork text: the `ask_ui` guidance (upstream #4932 deleted it; `ask_ui` has only
+  `confirm`), "ask for a pasted key again" (upstream #4986 saves it), the action-announcement
+  sentence of the dropped continuation rule, and "do not use evaluate before a saved-vault fill"
+  (upstream #5048 reloads the page).
+- Restored upstream text that fork merges lost: #4719 "fails or stalls … Blocked means only the user
+  can fix it"; "Save a pasted key or password at once"; "Unless the user asks, never use
+  browser:control-in-app-browser … a different host"; "do not work around" a safety check; "tell the
+  user, who decides"; websites "such as mail, calendars, or social sites"; "Before a sign-in, code, or
+  takeover … Never ask for a password, code, or card number in chat"; "Save a pasted key with
+  openbot.save_api_key"; "another tool argument"; and, for a task, "say so, so that the user can".
+- Removed repeats and shortened the external CDP, native control, diagnostics, mailbox and passkey
+  rules. Each file keeps one credential-source statement. The mailbox rule is for sign-in codes only;
+  upstream's 3-D Secure rule covers payment codes.
+
+`bun run check:agent-context` after this change (before it, against upstream `v0.73.0`'s baseline):
+`instructions.claude` 16795 (17533; 16552), `instructions.codex` 16974 (17712; 16731), `guidance`
+28274 (31021; 25529), `catalog.descriptions` 46995 (47219; 43434), `catalog.schemas` 82694 (82694;
+79583), `visible-tools` 16339 (16339; 16250). The check still fails: the fork's tools and rules are
+larger than upstream's baseline.
+
 ### Open blocker: the Team API capability list
 
 **Do not install the v0.73.0 merge.** Upstream `v0.73.0` lists exactly 256 capabilities, which is
@@ -169,7 +197,8 @@ These are open overlaps. The owner decides; until then the merged code does what
 - Codes from mail: the fork lets a routine enter a sign-in code from the user's connected mailbox
   through the protected local script (`9837d40530`). Upstream #11630 (`ef4f9ed2b5`) lets an agent
   type a 3-D Secure code that it can read, at a checkout that the user approved. Both rules are in
-  the merged instructions.
+  the merged instructions. The fork's mailbox rule is now for sign-in codes only; its sentence about
+  an email code for a payment is removed, because the 3-D Secure rule covers it.
 
 ## Fork patches replaced by upstream
 

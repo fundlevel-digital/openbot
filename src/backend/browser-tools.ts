@@ -229,7 +229,7 @@ export const BROWSER_TOOL_DEFINITIONS = [
   browserTool({
     name: "connect_cdp",
     description:
-      "Connect an external tool such as agent-browser to this existing OpenBot tab. Returns a local CDP WebSocket endpoint, secretRegistrationUrl, and recent diagnostics for this tab only; it does not open a browser. Calling again reuses a live connection, including after credential registration. Use only when the user asks for an external browser tool. Audited standard agent-browser snapshots and supported input actions preserve automatic saved-login fill. Use CLI snapshot refs for CLI actions; before submit_secret, take a fresh OpenBot snapshot or use unique CSS/role field targets. Other page scripts prevent automatic vault fill. A local script must POST its supplied credential values to secretRegistrationUrl before filling them, without printing them. Disconnect before using OpenBot browser tools again. Secure input or user takeover revokes the connection.",
+      "Connect an external tool such as agent-browser to this existing OpenBot tab. Returns a local CDP WebSocket endpoint, secretRegistrationUrl, and recent diagnostics for this tab only; it does not open a browser. Calling again reuses a live connection, including after credential registration. Use only when the user asks for an external browser tool. Audited snapshots, CLI snapshot refs and supported input keep saved-login fill; other page scripts turn it off. CLI refs are not OpenBot refs: before submit_secret, take an OpenBot snapshot or use unique CSS/role targets. A local script POSTs supplied credentials to secretRegistrationUrl before it fills them, without printing them. Disconnect before using OpenBot browser tools again. Secure input or user takeover revokes the connection.",
     shape: { tabId },
   }),
   browserTool({
@@ -253,7 +253,7 @@ export const BROWSER_TOOL_DEFINITIONS = [
   browserTool({
     name: "native_input",
     description:
-      "Use OS input in this tab's native window with the snapshotId from native_snapshot. Read a new snapshot after navigation or window changes. For supplied passwords or codes, a local script must register values at secretRegistrationUrl, then POST {snapshotId,input} to nativeInputUrl, without printing values or putting them in provider tool arguments. Returns only input delivery status; verify the resulting page.",
+      "Use OS input in this tab's native window with the snapshotId from native_snapshot. Read a new snapshot after navigation or window changes. A local script sends supplied credentials: it registers them at secretRegistrationUrl, then POSTs {snapshotId,input} to nativeInputUrl; never print them. Returns only input delivery status; verify the resulting page.",
     shape: { tabId, snapshotId: identifier, input: browserNativeInputSchema },
   }),
   browserTool({
@@ -270,7 +270,7 @@ export const BROWSER_TOOL_DEFINITIONS = [
   browserTool({
     name: "submit_secret",
     description:
-      "Request the secret card for the active authentication step found in a fresh page snapshot. Identify password, email/SMS code, or authenticator-app code from the page. Select any login-method option first. The user authorizes one fill-and-submit action to the shown HTTPS origin. Never pass a secret as an argument. Use takeover if the method or (without loginId) code length is unclear, for nonnumeric/recovery codes, CAPTCHA, passkey-only steps, or bank app approval. First try a site-supported saved-password or authenticator alternative to a passkey. Fill saved cards with fill_card.",
+      "Request the secret card for the active authentication step found in a fresh page snapshot. Identify password, email/SMS code, or authenticator-app code from the page. Select any login-method option first. The user authorizes one fill-and-submit action to the shown HTTPS origin. Never pass a secret as an argument. Use takeover if the method or (without loginId) code length is unclear, for nonnumeric/recovery codes, CAPTCHA, a passkey with no password or authenticator option, or bank app approval. Fill saved cards with fill_card.",
     shape: {
       tabId,
       method: z
@@ -438,7 +438,7 @@ export const BROWSER_TOOL_DEFINITIONS = [
   browserTool({
     name: "request_takeover",
     description:
-      "Ask the user to take over a tab for unclear OAuth account selection, CAPTCHA, passkey-only or human-presence steps, a payment step that you cannot complete, or when secure password/code handoff or card fill is unavailable. First check for a site-supported saved-password or authenticator alternative.",
+      "Ask the user to take over a tab for unclear OAuth account selection, CAPTCHA, a human-presence step or a passkey with no password or authenticator option, a payment step that you cannot complete, or when secure password/code handoff or card fill is unavailable.",
     shape: {
       tabId,
       reason: z
