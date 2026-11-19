@@ -26,12 +26,12 @@ import {
   type TeamProtocolV2RpcFrame,
   teamProtocolV2AuthenticationTranscript,
 } from "@openbot/contracts/team-protocol/v2";
-import {
-  decodeTeamProtocolV8CurrentEvent,
-  encodeTeamProtocolV8WebRtcHttpRequest,
-} from "@openbot/contracts/team-protocol/v8-webrtc-adapter";
+import { decodeTeamProtocolV8CurrentEvent } from "@openbot/contracts/team-protocol/v8-webrtc-adapter";
 import { decodeTeamProtocolSupportV9, TEAM_PROTOCOL_V9 } from "@openbot/contracts/team-protocol/v9";
-import { decodeTeamProtocolV9WebRtcHttpResponse } from "@openbot/contracts/team-protocol/v9-webrtc-adapter";
+import {
+  decodeTeamProtocolV9WebRtcHttpResponse,
+  encodeTeamProtocolV9WebRtcHttpRequest,
+} from "@openbot/contracts/team-protocol/v9-webrtc-adapter";
 import { sourceText } from "@openbot/i18n/source";
 import { remoteWorkspaceReadTimeout, startRemoteRequestDeadline } from "@openbot/team-client/remote-recovery";
 import { decodeRpcJsonFileBody } from "@openbot/team-client/rpc-json-file";
@@ -553,7 +553,7 @@ export class TeamWebRtcClientTransport extends EventEmitter<TeamWebRtcClientTran
                       channelPicture: true,
                       channelBrowser: true,
                     })
-                  : encodeTeamProtocolV8WebRtcHttpRequest(method, path, init.body, {
+                  : encodeTeamProtocolV9WebRtcHttpRequest(method, path, init.body, {
                       ...(init.preserveSemanticTags === undefined
                         ? {}
                         : { preserveSemanticTags: init.preserveSemanticTags }),

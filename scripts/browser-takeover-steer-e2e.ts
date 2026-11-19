@@ -122,6 +122,7 @@ const browser: AgentBrowserHost = {
       request: { method: "password", origin: "https://fixture.example.test", digits: 6 },
       agentScriptedOrigin: false,
       vaultFillable: false,
+      withCode: false,
       submit: () =>
         Effect.sync(() => {
           secretSubmitting = true;

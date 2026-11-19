@@ -372,8 +372,11 @@ async function runWorker(): Promise<void> {
   };
   const started = performance.now();
   const load = () => window.loadURL(`${ORIGIN}/fields`);
-  const prepare = (selector: string, origin = ORIGIN) =>
-    Effect.runPromise(engine.prepareSecret([{ kind: "css", selector }], origin, false, "on_input"));
+  const prepare = (selector: string) =>
+    Effect.runPromise(engine.prepareSecret([{ kind: "css", selector }], "on_input"));
+  /** Upstream's per-field rule, for every field of the request. */
+  const codeFields = (prepared: { kinds: Array<{ oneTimeCode: boolean }> }) =>
+    prepared.kinds.length > 0 && prepared.kinds.every((kind) => kind.oneTimeCode);
   const runPage = (expression: string) => window.webContents.executeJavaScript(expression);
   try {
     await load();
@@ -386,11 +389,7 @@ async function runWorker(): Promise<void> {
       "#marked",
       "#otp-text",
     ]) {
-      assert.equal(
-        (await prepare(selector)).fields.oneTimeCode,
-        true,
-        `The code field was not recognized: ${selector}`,
-      );
+      assert.equal(codeFields(await prepare(selector)), true, `The code field was not recognized: ${selector}`);
       checks.push(`${selector}: an authentication code field is recognized`);
     }
     // "labelled" and "unlabelled" have the word "label" in their id, which upstream's rule refuses.
@@ -402,18 +401,19 @@ async function runWorker(): Promise<void> {
       "#labelled",
       "#unlabelled",
     ]) {
-      assert.equal((await prepare(selector)).fields.oneTimeCode, false, `An unrelated field was accepted: ${selector}`);
+      assert.equal(codeFields(await prepare(selector)), false, `An unrelated field was accepted: ${selector}`);
       checks.push(`${selector}: unrelated or mismatched fields are refused`);
     }
     for (const selector of ["#disabled-otp", "#readonly-otp", "#hidden-otp", "#invisible"]) {
       await assert.rejects(prepare(selector), `An unavailable field was accepted: ${selector}`);
       checks.push(`${selector}: unavailable fields are refused`);
     }
-    await assert.rejects(prepare("#verificationCode", "https://other.openbot.test"));
-    checks.push("An origin mismatch is refused before entry");
+    // The host compares this origin with the page's site before a fill.
+    assert.equal((await prepare("#verificationCode")).origin, ORIGIN, "The field's document origin is wrong.");
+    checks.push("Preparation names the origin of the field's document");
 
     const ready = await prepare("#verificationCode");
-    await Effect.runPromise(ready.enter(CODE));
+    await Effect.runPromise(ready.enter([CODE]));
     assert.equal(
       await runPage(
         `document.querySelector('#verificationCode').value === ${JSON.stringify(CODE)} && window.trustedInputs === 1`,
@@ -421,7 +421,7 @@ async function runWorker(): Promise<void> {
       true,
       "Secure entry did not dispatch trusted input to the code field.",
     );
-    assert.equal(await Effect.runPromise(ready.clear(CODE)), true, "Secure entry did not clear its fixture value.");
+    assert.equal(await Effect.runPromise(ready.clear([CODE])), true, "Secure entry did not clear its fixture value.");
     checks.push("Recognized fields receive trusted input and clear the value");
 
     // Upstream's fingerprint keeps the id, name, autocomplete and aria-label of the field until entry.
@@ -438,7 +438,10 @@ async function runWorker(): Promise<void> {
       await load();
       const prepared = await prepare(selector);
       await runPage(mutation);
-      await assert.rejects(Effect.runPromise(prepared.enter(CODE)), "Changed authentication metadata permitted entry.");
+      await assert.rejects(
+        Effect.runPromise(prepared.enter([CODE])),
+        "Changed authentication metadata permitted entry.",
+      );
       assert.equal(
         await runPage("[...document.querySelectorAll('input')].every(input => input.value === '')"),
         true,
@@ -449,7 +452,7 @@ async function runWorker(): Promise<void> {
     await load();
     const stale = await prepare("#verificationCode");
     await load();
-    await assert.rejects(Effect.runPromise(stale.enter(CODE)), "A replacement document permitted stale entry.");
+    await assert.rejects(Effect.runPromise(stale.enter([CODE])), "A replacement document permitted stale entry.");
     checks.push("A replacement document blocks stale entry");
 
     const loadGroup = (name: string) => window.loadURL(`${ORIGIN}/group/${name}`);
@@ -457,8 +460,6 @@ async function runWorker(): Promise<void> {
       Effect.runPromise(
         engine.prepareSecret(
           Array.from({ length: count }, (_, index) => ({ kind: "css", selector: `#box-${index}` })),
-          ORIGIN,
-          false,
           "on_input",
           undefined,
           splitCode,
@@ -474,23 +475,19 @@ async function runWorker(): Promise<void> {
     assert.equal((await prepareGroup(6, false)).codeGroup, false, "The group rule ran with no host request.");
     checks.push("group bank: no group check without the host's flag");
 
-    // One digit goes to each box.
+    // One digit goes to each box. The host spreads the code over the boxes, as `BrowserHost.prepareSecret` does.
     for (const name of ["bank", "one-time-code"]) {
       await loadGroup(name);
       const group = await prepareGroup(6);
-      assert.equal(
-        group.codeGroup || group.fields.oneTimeCode,
-        true,
-        `The code group did not take a vault code: ${name}`,
-      );
-      await Effect.runPromise(group.enter(CODE));
+      assert.equal(group.codeGroup || codeFields(group), true, `The code group did not take a vault code: ${name}`);
+      await Effect.runPromise(group.enter([...CODE]));
       assert.equal(await boxValues(), CODE, `The code did not go one digit to each box: ${name}`);
       assert.equal(
         await runPage("window.trustedInputs"),
         6,
         `Entry did not send one trusted input to each box: ${name}`,
       );
-      assert.equal(await Effect.runPromise(group.clear(CODE)), true, `Entry did not clear the boxes: ${name}`);
+      assert.equal(await Effect.runPromise(group.clear([CODE])), true, `Entry did not clear the boxes: ${name}`);
       checks.push(
         `group ${name}: ${name === "bank" ? "the group rule" : "the per-field rule, with no group check,"} fills one digit in each box`,
       );
@@ -512,7 +509,10 @@ async function runWorker(): Promise<void> {
       const group = await prepareGroup(6);
       assert.equal(group.codeGroup, true, `The code group was not accepted before a change: ${name}`);
       await runPage(mutation);
-      await assert.rejects(Effect.runPromise(group.enter(CODE)), `A changed code group permitted entry: ${mutation}`);
+      await assert.rejects(
+        Effect.runPromise(group.enter([...CODE])),
+        `A changed code group permitted entry: ${mutation}`,
+      );
       assert.equal(await boxValues(), "", `A refused code group entry changed a box: ${mutation}`);
       checks.push(`group ${name}: a change blocks entry: ${mutation}`);
     }

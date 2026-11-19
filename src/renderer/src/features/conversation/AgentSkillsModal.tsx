@@ -1,5 +1,5 @@
 import type { FilePreview, InstalledSkill, MarketplaceSkillDetail } from "@openbot/contracts/ipc";
-import { assignedSkillCount, isFolderSkill, isSkillEnabled, userAssignedSkills } from "@openbot/contracts/ipc";
+import { isFolderSkill, isSkillEnabled, userAssignedSkills } from "@openbot/contracts/ipc";
 import type { AppTranslate } from "@openbot/i18n";
 import {
   Button,
@@ -117,7 +117,7 @@ export function AgentSkillsModal(props: AgentSkillsModalProps) {
       );
       if (request !== listRequest || agentId !== props.agentId || !props.open) return;
       setSkills(next);
-      props.onCountChange(assignedSkillCount(next));
+      props.onCountChange(next.length);
       const targetId = props.selectionRequest?.skillId;
       if (showLoading && targetId) {
         const target = next.find((skill) => skill.skillId === targetId);

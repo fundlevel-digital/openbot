@@ -128,6 +128,49 @@ workflow, and complete the upgrade audit before publishing the next numeric desk
 Do not point this branch at the repository-wide latest release, move the other application's
 default branch, or publish desktop packages under its version tags.
 
+## Upstream v0.73.0 merge
+
+On 2026-11-18 the branch merged upstream release `v0.73.0` (`9b344f044e`) on fork commit
+`36660e3d6e`. The merge base is `a0b754f8ba`. Git showed conflicts in 55 files. The merge keeps the
+capacity changes, the isolated update feed, native browser control, external CDP, the `click-once`
+offer, the split authenticator code group, the saved-tab start rule (`4c6f242045`) and the fork's
+minimum Codex version (0.166.0).
+
+Fixes after the conflicts:
+
+- Server Settings > Memory: upstream moved the memory limit there. The fork rule that hides it on a
+  server with unlimited memory storage now applies there. Global search also hides that row.
+- `scripts/plan-continuation-e2e.ts`: the MCP sign-in fixture now publishes OAuth metadata. Upstream
+  #10975 reads a 401 on every path, the metadata included, as a key server.
+
+### Open blocker: the Team API capability list
+
+**Do not install the v0.73.0 merge.** Upstream `v0.73.0` lists exactly 256 capabilities, which is
+`TEAM_PROTOCOL_CAPABILITY_LIMITS[9]`. The fork adds five: `channel-memory-pages-v1`,
+`rpc-json-files-v1`, `unlimited-memory-storage-v1`, `mcp-server-pages-v1` and `skill-pages-v1`. The
+merged list has 261 names, so a protocol 9 peer (iPhone, web client) cannot read it.
+`bun run test:team-legacy-clients` fails with "protocol 9 has 261 capabilities. Its peer reads at
+most 256." Do not raise the limit, remove a capability or add a protocol here. Upstream's answer is
+protocol 10 (`78ad15d100`, #12111), which is not in a release yet. Merge the release that has it.
+
+## Fork behavior that upstream changed
+
+These are open overlaps. The owner decides; until then the merged code does what each item says.
+
+- A pending question stays open when the person writes in the agent chat (fork commit
+  `d88c170041`). Upstream closes the question, or keeps the message under it (#11159, #11609).
+  `scripts/question-steer-order-e2e.ts` expects upstream's rule and fails on this branch.
+- Cursor "Add a payment method to continue": the fork ends the turn as a billing failure
+  (`754f6a51f8`, `775c0db779`: `answerFailure`, `error.backend.providerPaymentMethodRequired`, and
+  the routine billing check in `channel-routine-scheduler.ts`). Upstream #10573 (`0bb84a7ca5`) reads
+  the chunk when it arrives (`planUsedUpChunk` in `acp-client.ts`) as a used-up plan
+  (`usage_limit`). In the merged code the chunk rule runs first, so the fork's billing path does not
+  run for this text. `scripts/cursor-payment-required-e2e.ts` fails.
+- Codes from mail: the fork lets a routine enter a sign-in code from the user's connected mailbox
+  through the protected local script (`9837d40530`). Upstream #11630 (`ef4f9ed2b5`) lets an agent
+  type a 3-D Secure code that it can read, at a checkout that the user approved. Both rules are in
+  the merged instructions.
+
 ## Fork patches replaced by upstream
 
 On 2026-11-16 the owner decided to use upstream's version of these fork patches after the v0.71.0
@@ -156,12 +199,17 @@ The fork adds a second way for an authenticator code to fill from the Vault with
 `SPLIT_CODE_GROUP_FUNCTION` in `src/backend/browser-cdp.ts`. The host asks for it only for
 `method=authenticator` with one target for each digit and 6 to 8 digits. All of these must be true:
 
-- The step comes right after a saved password. A Vault password entry records its origin and time on
-  the tab (`BrowserHostTab.vaultPasswordFill`). The record must have the same origin and be at most
-  5 minutes old (`SPLIT_CODE_AFTER_PASSWORD_MS`). The submit of a code that the group rule accepted
+- The step comes right after a saved password. A Vault password entry records the origin of the
+  field's own document and the time on the tab (`BrowserHostTab.vaultPasswordFill`). For a sign-in
+  form in a frame of the same site, that is the frame's origin. The record must have the same origin
+  as the page and be at most 5 minutes old (`SPLIT_CODE_AFTER_PASSWORD_MS`). A password with its
+  code on one form (#8118) records nothing: it needs no later code step. The submit of a code that the group rule accepted
   deletes it, also when the fill fails, so a later group in the session, such as a payment step-up,
   goes to the card. A main-frame navigation to another origin deletes it, an idle unload keeps it, and
   it closes with the tab. The per-field rule does not use it.
+- The request is not a password with its code (#8118). That form is never a group: its password is
+  not entered yet.
+- No box is in a frame. The group rule runs only in the main frame's automation world.
 - Each box is an enabled, editable, visible text, tel or number input with no mask.
 - Each box takes one character: `maxlength="1"`, or no `maxlength` and at most 72 CSS px wide. The
   widths are equal within 2 px. The boxes are in one row in target order (reverse for `rtl`).
@@ -178,8 +226,9 @@ The fork adds a second way for an authenticator code to fill from the Vault with
   memorable, security number, pay, payment, payee, transfer, beneficiary, amount, send money, approve,
   authorise, transaction, withdraw or wire word.
 
-The fingerprint does not change. Entry runs the same function again before the first digit, and
-a false result enters nothing and ends in takeover. During a Vault fill of a code in digit boxes, the
+The host spreads the code: one digit goes to each box. The fingerprint does not change. Entry runs
+the same function again before the first digit, and a false result enters nothing and ends in
+takeover. During a Vault fill of a code in digit boxes, the
 host also blocks a URL whose query and fragment values, joined in order, contain the code. The rule
 that no named control is between the boxes keeps a GET form from splitting those values.
 
@@ -194,24 +243,29 @@ On 2026-11-18 these browser tab fixes came from `upstream/main` by `git cherry-p
 next upstream merge. A server unloaded no hidden agent tab that played muted media, such as YouTube.
 Each commit message names its upstream commit.
 
-| Upstream commit | PR | Change |
-| --- | --- | --- |
-| `f15f980c88` | #10363 | An idle unload releases the evaluate mark of the tab |
-| `8461760ee9` | #10376 | The end of a secure sign-in card frees the tab |
-| `abf6ac60bc` | #10450 | Muted media is not a use, so a hidden tab that plays it pauses and unloads |
-| `662dd982ea` | #11631 | The idle unload skips a tab while its first page loads |
-| `07b5e99673` | #11647 | An action timeout on a page that does not answer frees the tab |
-| `d09e63d9c9` | #12083 | A close of a tab that an earlier operation blocks ends |
+| Upstream commit | PR | Change | In `v0.73.0` |
+| --- | --- | --- | --- |
+| `f15f980c88` | #10363 | An idle unload releases the evaluate mark of the tab | Yes |
+| `8461760ee9` | #10376 | The end of a secure sign-in card frees the tab | Yes |
+| `abf6ac60bc` | #10450 | Muted media is not a use, so a hidden tab that plays it pauses and unloads | Yes |
+| `662dd982ea` | #11631 | The idle unload skips a tab while its first page loads | Yes |
+| `07b5e99673` | #11647 | An action timeout on a page that does not answer frees the tab | Yes |
+| `d09e63d9c9` | #12083 | A close of a tab that an earlier operation blocks ends | No: still a pick |
 
-At the next upstream merge, upstream's side is the source of truth for these changes. Git can show
-conflicts in `src/backend/browser-host.ts`, `src/backend/browser-tab-operations.ts` and
+`git merge-base --is-ancestor <commit> v0.73.0` gives the last column. After the v0.73.0 merge, the
+first five come from the merged release. Only `d09e63d9c9` is still a cherry-pick. At the next
+upstream merge, upstream's side is the source of truth for it. Git can show conflicts in
+`src/backend/browser-host.ts`, `src/backend/browser-tab-operations.ts` and
 `scripts/browser-secret-smoke.ts`. Take upstream's version of these hunks, and keep the fork code
 in the same files: the native control tab, external CDP and the `click-once` offer.
 
 Exception: the fork frees a tab at once when a failed fill leaves no value in the page (fork commit
 `3290aca164`). Upstream's #10376 smoke expects that tab to stay protected. Fork commit `1f8bea30ff`
 changes the `/lost` page and the `after-fill` and `held` cases so that the tab stays protected in
-the fork. Keep that change while the fork keeps `3290aca164`.
+the fork: these cases click a submit button that stays disabled, so the fill fails after the value
+went in. After the v0.73.0 merge the keep rule is `kept = cleared || (!leaked && entry succeeded)`,
+with upstream's `secretShown` (`13e9b00890`, #9815) for a page that still shows the value. Keep
+that change while the fork keeps `3290aca164`.
 
 ## Known exceptions
 

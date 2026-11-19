@@ -1,4 +1,5 @@
 import {
+  type AgentTask,
   type ChannelMessage,
   type ChannelTask,
   isQueuedAgentReply,
@@ -83,6 +84,29 @@ export function agentAwaitingReplies(input: AgentAwaitingInput): AwaitingReplyIt
     rows.push(rowFor(reply.sender.agentId, "replied", reply.id, reply));
   }
   return rows;
+}
+
+/**
+ * The rows of the waiting block of a side thread: each agent that the thread asked and that has not
+ * answered yet. The answer then comes back to the thread and starts it, so the row goes.
+ */
+export function threadAwaitingReplies(
+  task: AgentTask | null | undefined,
+  agents: readonly AgentProfile[],
+  waits: Record<string, SidebarAgentWait> | undefined,
+): AwaitingReplyItem[] {
+  const { t } = currentText();
+  return (task?.awaitedReplies ?? []).map(({ messageId, recipientAgentId, status }) => {
+    const agent = agents.find((candidate) => candidate.id === recipientAgentId);
+    const wait = waits?.[recipientAgentId];
+    return {
+      id: `${messageId}:${recipientAgentId}`,
+      agent,
+      name: agent?.name ?? t("chat.activity.agentFallback"),
+      state: deliveryState(status) ?? "working",
+      ...(wait ? { wait } : {}),
+    };
+  });
 }
 
 /** Null for a delivery that has landed: its answer is in the transcript, or it had none. */
