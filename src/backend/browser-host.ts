@@ -157,6 +157,7 @@ import {
   readActionSnapshot,
   readActionStatus,
   readTabSnapshot,
+  recordChallengeClick,
   remainingTime,
   runTabAction,
   runTabEvaluation,
@@ -3654,7 +3655,7 @@ export class BrowserHost {
     const diagnostics = new BrowserDiagnostics();
     const queue = Deferred.makeUnsafe<void>();
     Deferred.doneUnsafe(queue, Exit.void);
-    return {
+    const tab: BrowserHostTab = {
       id,
       view,
       contents: view.webContents,
@@ -3670,14 +3671,20 @@ export class BrowserHost {
       pendingOperations: 0,
       focusOnVisible: false,
       environment,
-      engine: new BrowserCdpEngine(view.webContents, undefined, () => {
-        const bounds = view.getBounds();
-        const zoom = view.webContents.getZoomFactor();
-        return {
-          width: Math.max(1, Math.round(bounds.width / zoom)),
-          height: Math.max(1, Math.round(bounds.height / zoom)),
-        };
-      }),
+      engine: new BrowserCdpEngine(
+        view.webContents,
+        undefined,
+        () => {
+          const bounds = view.getBounds();
+          const zoom = view.webContents.getZoomFactor();
+          return {
+            width: Math.max(1, Math.round(bounds.width / zoom)),
+            height: Math.max(1, Math.round(bounds.height / zoom)),
+          };
+        },
+        // An agent click in the offered bot check widget uses the offer of its one click.
+        (press) => recordChallengeClick(tab, press),
+      ),
       diagnostics,
       recording: false,
       captureGeneration: 0,
@@ -3687,6 +3694,7 @@ export class BrowserHost {
       viewContextMenu: null,
       lastUsedAt: Date.now(),
     };
+    return tab;
   }
 
   #createView(popupOptions: BrowserWindowConstructorOptions | undefined, tabSession: Session): WebContentsView {

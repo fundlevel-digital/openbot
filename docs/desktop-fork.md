@@ -103,6 +103,11 @@ After an upstream merge or rebase, keep these checks in `desktop-fork.yml`:
   keep the document and sign-in, exclude CDP during native control, and preserve permission gates.
 - `scripts/browser-native-task-permission-e2e.ts`: allow an enabled agent's task to use its own
   native browser, keep general desktop MCP tools out of tasks, and honor parent permission revocation.
+- `bun run test:browser-steps`: a bot check's `click-once` offer stays until an agent click lands
+  in the check widget. A second snapshot, the final snapshot of a `run_script`, or a click elsewhere
+  on the page keeps the offer. After the click, a check that stays asks for a person, and a new
+  document gets a new offer. Upstream (checked on `upstream/main`) uses the offer on the first read
+  after it, also with no click.
 
 Resolve conflicts in the owning source modules and keep these behavior checks. Preserve the
 credential-source instructions in `agent/developer-instructions.ts` and `agent/tool-guidance.ts`:

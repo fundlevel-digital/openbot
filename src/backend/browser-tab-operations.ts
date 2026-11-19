@@ -2,11 +2,13 @@ import type { BrowserDiagnosticEntry, BrowserSiteMemory, BrowserSnapshot, Browse
 import { Context, Deferred, Effect, Fiber, Option, Result } from "effect";
 import type { BrowserDialog, BrowserDialogOwner, BrowserPageStatus, SnapshotReadResult } from "./browser-cdp";
 import {
+  type BrowserClickPress,
   CHALLENGE_CLICK_WAIT_MS,
   CHALLENGE_POLL_MS,
   CHALLENGE_WAIT_MS,
   type DetectedChallenge,
   describeChallenge,
+  pressInChallengeWidget,
   TURNSTILE_SELF_PASS_MS,
 } from "./browser-challenge";
 import { type BrowserOperationError, browserFailure, browserSync } from "./browser-effects";
@@ -284,10 +286,10 @@ export const readTabSnapshot = Effect.fn("BrowserTab.readTabSnapshot")(function*
       if (lastReadFailed) current = yield* read(tab.revision + 1);
     });
   yield* waitWhile((challenge) => challenge.kind === "non-interactive", CHALLENGE_WAIT_MS - priorWaitMs);
-  // The read after a checkbox offer waits once for the check to pass, also when the agent did not click:
-  // a later read of the document then asks for a person at once.
+  // Only the first read after a click landed in the offered widget waits for the check to pass. A
+  // read with no such click before it does not wait, and offers the click again below.
   const clickOffer = tab.challengeClick?.document === tab.documents ? tab.challengeClick : undefined;
-  if (clickOffer && !clickOffer.waited) {
+  if (clickOffer?.clicked && !clickOffer.waited) {
     clickOffer.waited = true;
     yield* waitWhile((challenge) => challenge.kind !== "block" && !challenge.puzzle, CHALLENGE_CLICK_WAIT_MS);
   }
@@ -314,16 +316,18 @@ export const readTabSnapshot = Effect.fn("BrowserTab.readTabSnapshot")(function*
     else delete tab.checkOrigin;
     if (!detected || tab.checkAfterTakeover !== origin) delete tab.checkAfterTakeover;
     const afterTakeover = tab.checkAfterTakeover !== undefined;
-    // The first read of a document that needs a person offers its checkbox for one click.
+    // A read of a document that needs a person offers its checkbox for one click until a click lands in
+    // the widget. Each offer measures the widget again, because the page can scroll or move it.
     const clickOnce =
       detected?.checkbox &&
       !afterTakeover &&
       detected.kind !== "block" &&
       !(detected.kind === "non-interactive" && checking) &&
-      tab.challengeClick?.document !== tab.documents
+      !(tab.challengeClick?.document === tab.documents && tab.challengeClick.clicked)
         ? detected.checkbox
         : null;
-    if (clickOnce) tab.challengeClick = { document: tab.documents, waited: false };
+    if (clickOnce)
+      tab.challengeClick = { document: tab.documents, widget: clickOnce.widget, clicked: false, waited: false };
     const challenge = describeChallenge(
       detected,
       waitedVendor,
@@ -342,6 +346,16 @@ export const readTabSnapshot = Effect.fn("BrowserTab.readTabSnapshot")(function*
   tab.diagnostics.delivered(cursor);
   return result;
 });
+
+/**
+ * Call when an agent `click` sends a left press to the tab's page. A press in the widget of the offer
+ * for the current document uses the offer. A press before an offer, in an older document, or elsewhere
+ * on the page does not.
+ */
+export function recordChallengeClick(tab: BrowserHostTab, press: BrowserClickPress): void {
+  const offer = tab.challengeClick;
+  if (offer?.document === tab.documents && pressInChallengeWidget(offer.widget, press)) offer.clicked = true;
+}
 
 /**
  * The memories of the page's site, when this tab has not shown them in this turn. A read of another

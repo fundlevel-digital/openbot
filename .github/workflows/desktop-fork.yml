@@ -77,6 +77,7 @@ jobs:
           xvfb-run -a bun scripts/browser-smoke.ts --scenario=saved-tabs
           xvfb-run -a bun scripts/browser-card-smoke.ts
           xvfb-run -a bun scripts/browser-user-control-e2e.ts
+          xvfb-run -a bun run test:browser-steps
       - name: Check connection refresh and cookie redaction
         run: |
           bun scripts/remote-turn-refresh-e2e.ts

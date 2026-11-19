@@ -77,7 +77,7 @@ import {
   type SendCommand,
   stringValue,
 } from "./browser-cdp-values";
-import { type DetectedChallenge, detectChallenge } from "./browser-challenge";
+import { type BrowserClickPress, type DetectedChallenge, detectChallenge } from "./browser-challenge";
 import { type BrowserOperationError, browserCall, browserFailure, browserSync } from "./browser-effects";
 import {
   type BrowserFillFieldsProgress,
@@ -802,14 +802,18 @@ export class BrowserCdpEngine {
   #highlightSessionId: string | undefined;
   readonly #uploadDocumentIds = new Set<string>();
   readonly #targetSessions = new Map<string, { sessionId: string; url: string }>();
+  /** Hears each left press of `click` just before it goes to the page. */
+  readonly #onClickPress: ((press: BrowserClickPress) => void) | undefined;
 
   constructor(
     contents: WebContents,
     cardScrub = new CardValueScrub(),
     nativeViewport?: () => { width: number; height: number },
+    onClickPress?: (press: BrowserClickPress) => void,
   ) {
     this.#contents = contents;
     this.#cardScrub = cardScrub;
+    this.#onClickPress = onClickPress;
     this.#nativeCapture = new BrowserNativeCapture(
       contents,
       () => nativeViewport?.(),
@@ -1088,6 +1092,10 @@ export class BrowserCdpEngine {
           const { sessionId, ...coordinates } = point;
           yield* browserSync(() => assertBeforeDeadline(deadline));
           if (attempt === 1) onDispatch?.();
+          if (button === "left")
+            this.#onClickPress?.(
+              sessionId === undefined ? coordinates : { ...coordinates, frameUrl: this.#sessionFrameUrl(sessionId) },
+            );
           const from = this.#pointerIn(sessionId);
           this.#pointer = { point: coordinates, sessionId };
           const press = dispatchMouseClick(send, coordinates, button, totalClicks, modifiers, sessionId, from);
@@ -2148,9 +2156,18 @@ export class BrowserCdpEngine {
     return this.#cardScrub.text(value);
   }
 
-  /** The engine of a new view of the same tab. The card values typed in the tab stay hidden. */
+  /**
+   * The engine of a new view of the same tab. The card values typed in the tab stay hidden, and the
+   * tab still hears the presses of `click`.
+   */
   forContents(contents: WebContents): BrowserCdpEngine {
-    return new BrowserCdpEngine(contents, this.#cardScrub);
+    return new BrowserCdpEngine(contents, this.#cardScrub, undefined, this.#onClickPress);
+  }
+
+  /** The address of the frame in another process that `sessionId` drives, or "" when it is unknown. */
+  #sessionFrameUrl(sessionId: string): string {
+    for (const target of this.#targetSessions.values()) if (target.sessionId === sessionId) return target.url;
+    return "";
   }
 
   /** A target or a wait that names a typed card value would tell the agent whether the page holds it. */

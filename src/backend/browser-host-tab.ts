@@ -4,6 +4,7 @@ import type { Deferred, Effect, Scope } from "effect";
 import { BrowserWindow, type Session, type WebContents, type WebContentsView, webContents } from "electron";
 import type { BrowserCdpEngine } from "./browser-cdp";
 import type { BrowserCdpBridge } from "./browser-cdp-bridge";
+import type { FrameBox } from "./browser-challenge";
 import type { BrowserDiagnostics } from "./browser-diagnostics";
 import type { BrowserOperationError } from "./browser-effects";
 import { type BrowserTabSession, isPersistableBrowserUrl } from "./browser-state";
@@ -89,10 +90,12 @@ export interface BrowserHostTab {
   /** How long reads of one document waited for its bot check. All reads of a document share one wait. */
   challengeWait?: { document: number; waitedMs: number };
   /**
-   * The document whose bot check offered its checkbox for one click. The next read waits once for
-   * the check to pass; later reads of that document offer no click.
+   * The document whose bot check offered its checkbox for one click, and the widget box of the last
+   * offer. Each read offers the click again until an agent click lands in the widget (`clicked`). The
+   * first read after that click waits once for the check to pass (`waited`); later reads of that
+   * document offer no click.
    */
-  challengeClick?: { document: number; waited: boolean };
+  challengeClick?: { document: number; widget: FrameBox; clicked: boolean; waited: boolean };
   /** The origin of the page whose last read found a bot check. */
   checkOrigin?: string;
   /**

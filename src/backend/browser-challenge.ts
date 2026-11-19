@@ -18,7 +18,7 @@ export const CHALLENGE_WAIT_MS = 15_000;
 /** How often the snapshot reads the page again while it waits. */
 export const CHALLENGE_POLL_MS = 1_000;
 
-/** How long the read after a checkbox offer waits for the check to pass. */
+/** How long the first read after a click in the offered widget waits for the check to pass. */
 export const CHALLENGE_CLICK_WAIT_MS = 6_000;
 
 /**
@@ -31,6 +31,14 @@ export const TURNSTILE_SELF_PASS_MS = 3_000;
 /** The check reads the DOM only. A slow page must not hold the snapshot. */
 const CHECK_TIMEOUT_MS = 1_000;
 
+/** The box of a check widget's frame, in viewport CSS pixels of the main frame. */
+export interface FrameBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 /**
  * A bot check that the page shows. `non-interactive` clears by itself after a short wait,
  * `interactive` needs a person, and `block` refuses this browser.
@@ -39,8 +47,11 @@ export interface DetectedChallenge {
   vendor: string;
   kind: "non-interactive" | "interactive" | "block";
   signal: string;
-  /** The viewport point of a checkbox widget that one click can pass, such as Turnstile. */
-  checkbox: { x: number; y: number } | null;
+  /**
+   * The viewport point of a checkbox widget that one click can pass, such as Turnstile, and the box of
+   * the widget's frame. Only a click in that box uses the offer of the click.
+   */
+  checkbox: { x: number; y: number; widget: FrameBox } | null;
   /** An image puzzle shows. Only a person solves it. */
   puzzle: boolean;
 }
@@ -94,7 +105,11 @@ const CHALLENGE_SCRIPT = String.raw`(() => {
       const rect = widget.getBoundingClientRect();
       if (rect.width < 200 || rect.width > 420 || rect.height < 50 || rect.height > 100) continue;
       if (rect.left < 0 || rect.top < 0 || rect.right > innerWidth || rect.bottom > innerHeight) continue;
-      return { x: Math.round(rect.left + 28), y: Math.round(rect.top + rect.height / 2) };
+      return {
+        x: Math.round(rect.left + 28),
+        y: Math.round(rect.top + rect.height / 2),
+        widget: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      };
     }
     return null;
   })();
@@ -157,10 +172,19 @@ function challengeKind(value: unknown): DetectedChallenge["kind"] | null {
   return value === "non-interactive" || value === "interactive" || value === "block" ? value : null;
 }
 
+function readWidget(value: unknown): FrameBox | null {
+  if (!isDynamicRecord(value)) return null;
+  const { left, top, width, height } = value;
+  return isFiniteNumber(left) && isFiniteNumber(top) && isFiniteNumber(width) && isFiniteNumber(height)
+    ? { left, top, width, height }
+    : null;
+}
+
 function readCheckbox(value: unknown): DetectedChallenge["checkbox"] {
   if (!isDynamicRecord(value)) return null;
   const { x, y } = value;
-  return typeof x === "number" && typeof y === "number" && x >= 0 && y >= 0 ? { x, y } : null;
+  const widget = readWidget(value.widget);
+  return typeof x === "number" && typeof y === "number" && x >= 0 && y >= 0 && widget ? { x, y, widget } : null;
 }
 
 function readChallenge(value: unknown): DetectedChallenge | null {
@@ -178,13 +202,6 @@ function readChallenge(value: unknown): DetectedChallenge | null {
 
 /** The most frames that the Turnstile lookup reads. A page with a check has few. */
 const MAX_WIDGET_FRAMES = 12;
-
-interface FrameBox {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
 
 /**
  * The box of a visible Turnstile frame in the main document, in viewport CSS pixels. CDP names a
@@ -226,7 +243,35 @@ function widgetCheckbox(box: FrameBox, viewport: unknown): DetectedChallenge["ch
   const height = numberValue(size?.height);
   if (box.width < 200 || box.width > 420 || box.height < 50 || box.height > 100) return null;
   if (box.left < 0 || box.top < 0 || box.left + box.width > width || box.top + box.height > height) return null;
-  return { x: Math.round(box.left + 28), y: Math.round(box.top + box.height / 2) };
+  return { x: Math.round(box.left + 28), y: Math.round(box.top + box.height / 2), widget: box };
+}
+
+/**
+ * A left press that the agent's `click` sent to the page. A press in a frame of another process has
+ * that frame's coordinates, so it also gives the frame's address.
+ */
+export interface BrowserClickPress {
+  x: number;
+  y: number;
+  frameUrl?: string;
+}
+
+/** The frames of the check widgets whose checkbox a snapshot offers. */
+const CHECK_WIDGET_FRAME =
+  /challenges\.cloudflare\.com|\/recaptcha\/(api2|enterprise)\/anchor|hcaptcha\.com.*frame=checkbox/;
+
+/**
+ * Whether a press landed in the offered check widget: in the widget's box from the read that offered
+ * the click, or in a widget frame of another process. A press elsewhere on the page does not count.
+ */
+export function pressInChallengeWidget(widget: FrameBox, press: BrowserClickPress): boolean {
+  if (press.frameUrl !== undefined) return CHECK_WIDGET_FRAME.test(press.frameUrl);
+  return (
+    press.x >= widget.left &&
+    press.x <= widget.left + widget.width &&
+    press.y >= widget.top &&
+    press.y <= widget.top + widget.height
+  );
 }
 
 /**
@@ -270,7 +315,10 @@ export function describeChallenge(
   waitedMs: number,
   /** The check passes by itself, and its wait has time left for the next read. */
   checking = false,
-  /** The checkbox that the agent may click once. Only the first read of a document offers it. */
+  /**
+   * The checkbox that the agent may click once. Each read of a document offers it again until a click
+   * lands in the widget.
+   */
   clickOnce: DetectedChallenge["checkbox"] = null,
   /** A person completed a takeover of the tab, and the check is still there. */
   afterTakeover = false,

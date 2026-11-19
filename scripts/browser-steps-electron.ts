@@ -605,7 +605,24 @@ async function main(): Promise<void> {
     recordCases("turnstile-passes-without-click");
     const stuckOffer = await readPage("navigate", { tabId: settleTab.id, url: `${origin}/stuck-checkbox-captcha` });
     assert.equal(stuckOffer.page.challenge?.status, "click-once");
-    await call("click", { tabId: settleTab.id, target: offerSchema.parse(stuckOffer.raw).challenge.target });
+    // A read with no click keeps the offer. It waits neither for the click nor for the Turnstile again.
+    const offerKept = await readPage("snapshot", { tabId: settleTab.id, image: "never" });
+    assert.equal(offerKept.page.challenge?.status, "click-once", "A read with no click used up the offer.");
+    assert(offerKept.ms < 3_000, `A read with no click waited for the check: ${offerKept.ms} ms.`);
+    recordCases("challenge-offer-stays-after-read");
+    // The final snapshot of a script with no click keeps the offer too.
+    const scriptedRead = await readPage("run_script", { tabId: settleTab.id, script: "return 1;" });
+    assert.equal(scriptedRead.page.challenge?.status, "click-once", "A script's final snapshot used up the offer.");
+    const afterScript = await readPage("snapshot", { tabId: settleTab.id, image: "never" });
+    assert.equal(afterScript.page.challenge?.status, "click-once", "The read after a script lost the offer.");
+    recordCases("challenge-offer-stays-after-script");
+    // A click outside the widget does not use the offer.
+    await call("click", { tabId: settleTab.id, target: { kind: "point", x: 4, y: 4 } });
+    const missed = await readPage("snapshot", { tabId: settleTab.id, image: "never" });
+    assert.equal(missed.page.challenge?.status, "click-once", "A click outside the widget used up the offer.");
+    assert(missed.ms < 3_000, `A read after a click outside the widget waited: ${missed.ms} ms.`);
+    recordCases("challenge-click-elsewhere-keeps-offer");
+    await call("click", { tabId: settleTab.id, target: offerSchema.parse(missed.raw).challenge.target });
     const stuckClick = await readPage("snapshot", { tabId: settleTab.id, image: "never" });
     assert.equal(
       stuckClick.page.challenge?.status,
@@ -618,6 +635,20 @@ async function main(): Promise<void> {
     assert(stuckClickAgain.ms < 3_000, `A check that stayed after its click waited again: ${stuckClickAgain.ms} ms.`);
     measurements.stuckCheckboxSecondSnapshotMs = stuckClickAgain.ms;
     recordCases("challenge-click-once-per-document");
+    // A new document of the same check gets a new offer. A script's click step on it uses that offer.
+    const newDocument = await readPage("navigate", { tabId: settleTab.id, url: `${origin}/stuck-checkbox-captcha` });
+    assert.equal(newDocument.page.challenge?.status, "click-once", "A new document got no offer.");
+    const newTarget = offerSchema.parse(newDocument.raw).challenge.target;
+    const scriptedClick = await readPage("run_script", {
+      tabId: settleTab.id,
+      script: `await click(${JSON.stringify(newTarget)});`,
+    });
+    assert.equal(
+      scriptedClick.page.challenge?.status,
+      "needs-user",
+      "A script's click on the checkbox did not use the offer.",
+    );
+    recordCases("challenge-new-document-offers-again", "challenge-script-click-uses-offer");
 
     phase("modal");
     const modal = await readPage("navigate", { tabId: settleTab.id, url: `${origin}/modal` });

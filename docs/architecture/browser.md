@@ -229,12 +229,21 @@ finds a Turnstile response field without a token, the main process finds the fra
 `DOM.getFrameOwner` for each child frame, also for frames in other processes, then the frame's
 `src` and its box from `DOM.getBoxModel`. A field without a visible frame (invisible mode) is not a
 check. A Turnstile widget often passes by itself in 1 to 2 seconds, and an early click can look like
-a bot, so the read that would offer its checkbox first waits up to 3 seconds for a token. The first
-read of a document that still needs a person then has `click-once` and a `point` target in place of `needs-user`. The agent clicks it with the
-ordinary `click` tool, so ownership, user control and the cursor stay the same. The next read of
-that document waits up to 6 seconds for the check to pass; a visible image puzzle or a block ends the
-wait at once, because only a person solves a puzzle. Later reads of the document ask for a person
-and do not offer the click again. A widget whose response field has a token passed: neither its
+a bot, so the read that would offer its checkbox first waits up to 3 seconds for a token. Only the
+first offer of a document has this wait. A read of a document that still needs a person then has
+`click-once` and a `point` target in place of `needs-user`. The agent clicks it with the ordinary
+`click` tool or a `run_script` click step, so ownership, user control and the cursor stay the same.
+The offer stays until an agent click lands in the widget: each read with no such click, also the
+final snapshot of a `run_script`, offers it again with a target from its own detection, because the
+page can move the widget. The engine reports each left press of `click` to the tab
+(`recordChallengeClick`). The press counts when it is in the widget's frame box from the last offer
+of the same document, or when it goes to a widget frame in another process. A press elsewhere on the
+page, in an older document, or before the first offer does not count. A person's input in a live
+view does not go through `click`, and an agent click waits while a person holds the tab. The first
+read after the counted click waits up to 6 seconds for the check to pass; a visible image puzzle or
+a block ends the wait at once, because only a person solves a puzzle. Later reads of the document
+ask for a person and do not offer the click again. A new document gets a new offer. A widget whose
+response field has a token passed: neither its
 frame nor the generic phrases count then, because the page keeps its text. The host never solves a
 puzzle and sends no page data to a solver service. The idea and the vendor
 list come from anomalyco/browse; the code is our own.
