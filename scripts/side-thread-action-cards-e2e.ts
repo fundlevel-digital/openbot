@@ -600,11 +600,16 @@ try {
     ].join("|")})$`,
   );
   async function openThread(title: string) {
+    const current = page.getByRole("region", {
+      name: english("conversation.threads.view.label", { title }),
+      exact: true,
+    });
+    if (await current.isVisible()) return;
     await page.getByRole("button", { name: threadMenuName }).first().click();
     await page
       .getByRole("menuitem", { name: new RegExp(escapeRegExp(title)) })
       .first()
-      .click();
+      .press("Enter");
   }
   await openThread(sideTitle);
   await signIn(serverName, sideTitle).waitFor();
