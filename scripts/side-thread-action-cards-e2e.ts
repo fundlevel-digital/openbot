@@ -588,11 +588,19 @@ try {
     (saved) => window.openbot.agent.saveMcpServer({ config: saved }, "local"),
     config(laterId, laterName),
   );
+  const threadTitleMarker = "__THREAD_TITLE__";
+  const threadMenuName = new RegExp(
+    `^(?:${[
+      escapeRegExp(english("conversation.threads.all")),
+      escapeRegExp(english("conversation.threads.allUnread")),
+      escapeRegExp(english("conversation.threads.current", { title: threadTitleMarker })).replace(
+        threadTitleMarker,
+        ".+",
+      ),
+    ].join("|")})$`,
+  );
   async function openThread(title: string) {
-    await page
-      .getByRole("button", { name: english("conversation.threads.all"), exact: true })
-      .first()
-      .click();
+    await page.getByRole("button", { name: threadMenuName }).first().click();
     await page
       .getByRole("menuitem", { name: new RegExp(escapeRegExp(title)) })
       .first()
