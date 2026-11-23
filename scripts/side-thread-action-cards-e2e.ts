@@ -633,7 +633,14 @@ try {
   );
   assert.ok(report.oauthRequests > 0, "The card must use the local fixture's OAuth flow.");
   check("The branch card completes the local sign-in flow for its MCP server");
-  await page.keyboard.press("Escape");
+  const backTargetMarker = "__BACK_TARGET__";
+  const backName = new RegExp(
+    `^(?:${escapeRegExp(english("sidebar.topbar.back"))}|${escapeRegExp(
+      english("sidebar.topbar.backTo", { name: backTargetMarker }),
+    ).replace(backTargetMarker, ".+")})$`,
+  );
+  await page.getByRole("button", { name: backName }).click();
+  await openThread(branchTitle);
   const continueButton = page.getByRole("button", {
     name: english("chat.mcpSignIn.continueNamed", { name: laterName }),
     exact: true,
