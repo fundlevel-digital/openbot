@@ -95,6 +95,7 @@ export function createThreadActionCards(
                     action={webhook().action}
                     routine={webhook().routine}
                     connected={webhookRoutines.state.connected}
+                    agentName={props.agent?.name}
                     secret={webhookRoutines.state.secrets[webhook().routine.id] ?? null}
                     onSecret={(secret) => webhookRoutines.setSecret(webhook().routine.id, secret)}
                     onOpenRoutine={openRoutineSettings}

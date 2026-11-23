@@ -1,8 +1,7 @@
-// The WhatsApp numbers of the joined server in the browser client (`whatsapp-connector-v1`). The
-// host's session gets the QR code or the pairing code, and this tab shows it.
-// `whatsapp-working-message-v1` adds the "Working on it…" setting of each number.
-
-import { withWhatsAppWorkingMessages } from "@openbot/contracts/ipc";
+import { withWhatsAppReadOnly, withWhatsAppStatusReactions, withWhatsAppWorkingMessages } from "@openbot/contracts/ipc";
+import { WHATSAPP_READ_ONLY_CAPABILITY } from "@openbot/contracts/team-protocol/whatsapp-read-only-v1";
+import { WHATSAPP_STATUS_REACTIONS_CAPABILITY } from "@openbot/contracts/team-protocol/whatsapp-status-reactions-v1";
+import { WHATSAPP_WORKING_MESSAGE_CAPABILITY } from "@openbot/contracts/team-protocol/whatsapp-working-message-v1";
 import { runTeamEffect } from "@openbot/team-client";
 import {
   type TeamAdminRequestError,
@@ -14,39 +13,47 @@ import {
   whatsappConnectorGroups,
   whatsappConnectorLinkState,
   whatsappConnectorOverview,
+  whatsappConnectorReadOnly,
   whatsappConnectorReconnect,
   whatsappConnectorRemoveSender,
   whatsappConnectorSetEnabled,
   whatsappConnectorSetOwnNumber,
+  whatsappConnectorSetSenderReadOnly,
+  whatsappConnectorSetStatusReactions,
   whatsappConnectorSetWorkingMessage,
   whatsappConnectorStartLink,
+  whatsappConnectorStatusReactions,
   whatsappConnectorWorkingMessages,
 } from "@openbot/team-client/team-admin-requests";
 import type { TeamApiRequest } from "@openbot/team-client/team-api-requests";
 import { Effect } from "effect";
 import type { HostWhatsAppApi } from "../connectors/whatsapp-connector";
 
-/**
- * `request` throws for a server that is not connected. `workingMessage` is false for an older host
- * without `whatsapp-working-message-v1`: its numbers then carry no setting, and the page shows no switch.
- */
 export function webHostWhatsApp(
   request: (serverId: string) => TeamApiRequest,
-  workingMessage: () => boolean,
+  has: (capability: string) => boolean,
 ): HostWhatsAppApi {
-  /** `request` can throw, so it runs inside the Effect and a failure rejects the promise. */
   const run = <T>(serverId: string, call: (target: TeamApiRequest) => Effect.Effect<T, TeamAdminRequestError>) =>
     runTeamEffect(Effect.suspend(() => call(request(serverId))).pipe(Effect.mapError((error) => error.cause)));
   return {
     hostGetWhatsAppOverview: (serverId) =>
       run(serverId, (target) =>
-        workingMessage()
-          ? Effect.zipWith(
-              whatsappConnectorOverview(target),
-              whatsappConnectorWorkingMessages(target),
-              withWhatsAppWorkingMessages,
-            )
-          : whatsappConnectorOverview(target),
+        Effect.all(
+          [
+            whatsappConnectorOverview(target),
+            has(WHATSAPP_WORKING_MESSAGE_CAPABILITY) ? whatsappConnectorWorkingMessages(target) : Effect.succeed(null),
+            has(WHATSAPP_STATUS_REACTIONS_CAPABILITY) ? whatsappConnectorStatusReactions(target) : Effect.succeed(null),
+            has(WHATSAPP_READ_ONLY_CAPABILITY) ? whatsappConnectorReadOnly(target) : Effect.succeed(null),
+          ],
+          { concurrency: "unbounded" },
+        ).pipe(
+          Effect.map(([overview, workingMessages, statusReactions, readOnly]) =>
+            withWhatsAppReadOnly(
+              withWhatsAppStatusReactions(withWhatsAppWorkingMessages(overview, workingMessages), statusReactions),
+              readOnly,
+            ),
+          ),
+        ),
       ),
     hostStartWhatsAppLink: (input, serverId) => run(serverId, (target) => whatsappConnectorStartLink(target, input)),
     hostGetWhatsAppLinkState: (serverId) => run(serverId, whatsappConnectorLinkState),
@@ -67,5 +74,9 @@ export function webHostWhatsApp(
       run(serverId, (target) => whatsappConnectorSetOwnNumber(target, input)),
     hostSetWhatsAppWorkingMessage: (input, serverId) =>
       run(serverId, (target) => whatsappConnectorSetWorkingMessage(target, input)),
+    hostSetWhatsAppStatusReactions: (input, serverId) =>
+      run(serverId, (target) => whatsappConnectorSetStatusReactions(target, input)),
+    hostSetWhatsAppSenderReadOnly: (input, serverId) =>
+      run(serverId, (target) => whatsappConnectorSetSenderReadOnly(target, input)),
   };
 }

@@ -117,9 +117,16 @@ export const messages = {
   "provider.picker.download": "{name} indirmesi",
   "provider.picker.search": "Modellerde ara",
   "provider.picker.noMatches": "Aramanızla eşleşen model yok.",
+  "provider.picker.openrouterNoMatches":
+    "Aramanızla eşleşen model yok. openrouter.ai üzerindeki gizlilik, sağlayıcı ve koruma (guardrail) ayarlarınız bu listedeki bazı modelleri gizleyebilir.",
+  "provider.picker.workspaceOnlyUnavailable":
+    'Bu modeller Windows ve Linux\'ta "Yalnızca çalışma alanı" ile çalışmaz. Kullanmak için ajan ayarlarında "İzinler"i değiştirin.',
   "provider.picker.olderModels": "Eski modeller",
   "provider.picker.olderModelsList": "Eski {name} modelleri",
-  "provider.picker.noModels": "{name} sağlayıcısından kullanılabilir model yok.",
+  "provider.picker.noModels":
+    "Burada {name} modeli görünmüyor. Kapalıysalar, bir yönetici bunları Sunucu ayarları > Sağlayıcılar > {name} > Modeller bölümünden açabilir.",
+  "provider.picker.endpointModelsInCustom": "{name} özel uç noktalarınızı çalıştırıyor. Modelleri Özel sekmesinde.",
+  "provider.picker.showCustomModels": "Modelleri göster",
   "provider.picker.museNoModels":
     "Muse bu hesap için model göndermedi. Muse, bu ajanın çalıştığı ülkede kullanılamıyor olabilir. Başka bir sağlayıcıdan model seçin.",
   "provider.picker.customEmpty":
@@ -137,6 +144,7 @@ export const messages = {
   "provider.picker.effort": "Efor",
   "provider.picker.effortLabel": "Ajan akıl yürütme eforu",
   "provider.picker.effortFixed": "{effort}, {provider} tarafından sabit",
+  "provider.picker.effortLimited": "Claude ayarların veya kuruluşun eforu {effort} ile sınırlıyor.",
   "provider.picker.fast": "Hızlı",
   "provider.picker.fastText": "Daha hızlı yanıtlar, daha fazla kullanım",
   "provider.picker.speed": "Hız",
@@ -147,6 +155,8 @@ export const messages = {
   "provider.picker.selectEffort": "Efor seçin",
   "provider.picker.custom": "Özel",
   "provider.picker.cliReady": "{cli} hazır",
+  "provider.picker.modelSourceProvider": "{cli} ayarlarındaki {name} kullanılıyor",
+  "provider.picker.modelSourceCatalog": "{cli} ayarlarındaki model listesi kullanılıyor",
   "provider.status.signInRequired": "Oturum açılmalı",
   "provider.model.free": "Ücretsiz",
   "provider.model.new": "Yeni",
@@ -213,6 +223,7 @@ export const messages = {
   "provider.openCodeKey.reconnectFailed": "Yeniden bağlanılamadı.",
   "provider.account.add": "Hesap ekle",
   "provider.account.addLabel": "Başka bir {name} hesabı ekle",
+  "provider.account.addWithCode": "Kodla hesap ekle",
   "provider.account.count": { one: "{count} hesap", other: "{count} hesap" },
   "provider.account.numbered": "Hesap {number}",
   "provider.account.apiKey": "API anahtarı",
@@ -258,19 +269,27 @@ export const messages = {
   "provider.settings.disconnectHost": "OpenBot sunucuda {provider} oturumunu kapatır.",
   "provider.settings.geminiKeyReplacesAccount":
     "Google oturumu yerine kayıtlı bir Gemini API anahtarı kullanılıyor. Bir Google planını ve modellerini kullanmak için anahtarı kaldır.",
+  "provider.settings.museKeyInUse":
+    "Muse oturum açmanızı değil, bu anahtarı kullanır. Oturum açmanızı kullanmak için anahtarı kaldırın.",
   "provider.settings.versionInstalledByUser": "{version} · senin yüklediğin",
   "provider.settings.versionDownloaded": "{version} · OpenBot tarafından indirildi",
   "provider.settings.otherVersionInstalledByUser": "Kullanılmıyor: {version} · senin yüklediğin",
   "provider.settings.otherVersionDownloaded": "Kullanılmıyor: {version} · OpenBot tarafından indirildi",
+  "provider.settings.installedVersionIncomplete":
+    "Bazı modeller bu sürümde olmayan bir bileşene ihtiyaç duyar. Bunları kullanmak için OpenBot sürümünü indir.",
   "provider.settings.useInstalledVersion": "Yüklü sürümü kullan",
   "provider.settings.useDownloadedVersion": "OpenBot sürümünü kullan",
   "provider.settings.cache": "Önbellek",
   "provider.settings.promptCache": "İstem önbelleği",
   "provider.settings.promptCacheDescription":
-    "Claude'un bir ajanın bağlamını turlar arasında önbellekte ne kadar tuttuğu.",
+    "Claude ve Pi'nin bir ajanın bağlamını turlar arasında önbellekte ne kadar tuttuğu.",
   "provider.settings.promptCacheHour": "1 saat",
-  "provider.settings.promptCacheDefault": "Claude Code varsayılanı",
+  "provider.settings.promptCacheDefault": "Sağlayıcı varsayılanı",
   "provider.settings.promptCacheLoadFailed": "Bu sunucunun istem önbelleği süresi yüklenemedi.",
+  "provider.settings.cacheExpiryCompaction": "Önbelleğin süresi dolmadan sıkıştır",
+  "provider.settings.cacheExpiryCompactionDescription":
+    "200K veya daha fazla token bağlamı olan bir sohbet 1 saatlik önbellekle boşta olduğunda, ajan önbelleğin süresi dolmadan bağlamı sıkıştırır. Böylece sonraki mesaj tüm bağlamı önbelleksiz yeniden okumaz.",
+  "provider.settings.cacheExpiryCompactionLoadFailed": "Bu sunucunun sıkıştırma ayarı yüklenemedi.",
   "provider.settings.claudeSetup": "Claude Code",
   "provider.settings.claudeUserSetup": "Kendi Claude Code kurulumumu kullan",
   "provider.settings.claudeUserSetupDescription":
@@ -285,6 +304,29 @@ export const messages = {
   "provider.settings.compactWindowDefault": "Claude Code varsayılanı",
   "provider.settings.compactWindowTokens": "{size} token",
   "provider.settings.compactWindowLoadFailed": "Bu sunucunun sıkıştırma boyutu yüklenemedi.",
+  "provider.settings.environment": "Ortam",
+  "provider.settings.environmentVariables": "Değişkenler",
+  "provider.settings.environmentDescription":
+    "Her {name} sürecinin aldığı API anahtarları, temel URL’ler ve diğer ayarlar. Bir değişiklik, süren turlar bitince geçerli olur.",
+  "provider.settings.environmentCodexHint":
+    "OPENAI_BASE_URL, anahtar olarak OPENAI_API_KEY ile ChatGPT’nin model isteklerini bu adrese gönderir.",
+  "provider.settings.environmentShellNote": "Ajanların çalıştırdığı komutlar bu değerleri okuyabilir.",
+  "provider.settings.environmentAdd": "Değişken ekle",
+  "provider.settings.environmentNamePlaceholder": "VARIABLE_NAME",
+  "provider.settings.environmentValuePlaceholder": "Değer",
+  "provider.settings.environmentSaved": "Kayıtlı",
+  "provider.settings.environmentSensitive": "Gizli",
+  "provider.settings.environmentNameLabel": "Değişken adı {index}",
+  "provider.settings.environmentValueLabel": "{name} değeri",
+  "provider.settings.environmentSensitiveLabel": "{name} gizli tutulsun",
+  "provider.settings.environmentRemoveLabel": "{name} kaldır",
+  "provider.settings.environmentUnnamed": "değişken {index}",
+  "provider.settings.environmentPending":
+    "Kaydetmek, süren turlar bitince {name} uygulamasını yeniden başlatır. Gizli değerler sunucuda kalır.",
+  "provider.settings.environmentDone": "Kaydedildi. {name}, süren turlar bitince yeniden başlar.",
+  "provider.settings.environmentDiscard": "Vazgeç",
+  "provider.settings.environmentSave": "Kaydet",
+  "provider.settings.environmentLoadFailed": "{name} değişkenleri yüklenemedi.",
   "provider.settings.models": "Modeller",
   "provider.settings.modelsDescription": {
     one: "{count} modelden {shown} tanesi model seçicide görünür.",
@@ -305,4 +347,5 @@ export const messages = {
   "provider.settings.removeDownloadFailed": "İndirme kaldırılamadı.",
   "provider.settings.disconnectLocalOnly":
     "OpenBot bu bilgisayarda {provider} oturumunu kapatır. Terminalindeki {provider} CLI kendi oturumunu korur.",
+  "provider.settings.updateAll": "Tümünü güncelle",
 } as const satisfies PartialTranslation<typeof source>;

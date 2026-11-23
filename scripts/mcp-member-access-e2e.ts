@@ -30,12 +30,12 @@ import {
   type TestMcpServerInput,
 } from "@openbot/contracts/ipc";
 import { TEAM_API_ROUTES } from "@openbot/contracts/team-api-routes";
+import { TEAM_APP_VERSION_HEADER, TEAM_PROTOCOL_VERSION_HEADER } from "@openbot/contracts/team-protocol";
 import {
-  TEAM_APP_VERSION_HEADER,
-  TEAM_CAPABILITIES_HEADER,
-  TEAM_PROTOCOL_VERSION_HEADER,
-} from "@openbot/contracts/team-protocol";
-import { MCP_MEMBER_ACCESS_CAPABILITY, teamCapabilitiesForProtocol } from "@openbot/contracts/team-protocol/current";
+  MCP_MEMBER_ACCESS_CAPABILITY,
+  teamCapabilitiesForProtocol,
+  teamCapabilityHeaders,
+} from "@openbot/contracts/team-protocol/current";
 import { MCP_ACCESS_CAPABILITY, MCP_ACCESS_ROUTES } from "@openbot/contracts/team-protocol/mcp-access-v1";
 import {
   decodeMcpServerPage,
@@ -45,8 +45,17 @@ import {
 import { MCP_SIGN_IN_APP_ROUTES } from "@openbot/contracts/team-protocol/mcp-sign-in-app-v1";
 import { MCP_SIGN_IN_ROUTES } from "@openbot/contracts/team-protocol/mcp-sign-in-v1";
 import { MCP_ROUTES } from "@openbot/contracts/team-protocol/mcp-v1";
+import {
+  PROVIDER_SIGN_IN_RELAY_V2_CAPABILITY,
+  PROVIDER_SIGN_IN_RELAY_V2_ROUTES,
+} from "@openbot/contracts/team-protocol/provider-sign-in-relay-v2";
+import {
+  SIGN_IN_RELAY_DEEP_LINK_CAPABILITY,
+  SIGN_IN_RELAY_DEEP_LINK_ROUTES,
+} from "@openbot/contracts/team-protocol/sign-in-relay-deep-link-v1";
 import { SIGN_IN_RELAY_ROUTES } from "@openbot/contracts/team-protocol/sign-in-relay-v1";
 import { TEAM_PROTOCOL_V9 } from "@openbot/contracts/team-protocol/v9";
+import { TEAM_PROTOCOL_V10 } from "@openbot/contracts/team-protocol/v10";
 import { sourceText } from "@openbot/i18n/source";
 import { plugin } from "bun";
 import { Effect } from "effect";
@@ -67,7 +76,6 @@ const STEP_DEADLINE_MS = 30_000;
 const OWNER_URL = "https://mcp.trello.com/v1";
 const MEMBER_URL = "https://mcp.notion.com/mcp";
 
-// The main process imports Electron for its windows and IPC. No check here opens a window.
 plugin({
   name: "mcp-member-access-electron-boundary",
   setup(build) {
@@ -122,7 +130,6 @@ async function step<T>(name: string, run: () => Promise<T>): Promise<T> {
   process.stdout.write(`- ${name}\n`);
   let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
-    // A bound on failure only: each check waits for its reply.
     const value = await Promise.race([
       run(),
       new Promise<never>((_, reject) => {
@@ -142,6 +149,7 @@ async function step<T>(name: string, run: () => Promise<T>): Promise<T> {
 const unused = () => Effect.die(new Error("Not used by this check."));
 const agentBrowser: AgentBrowserHost = {
   listTabs: () => [],
+  toolCanUseTab: () => false,
   beginTakeover: unused,
   endTakeover: () => {},
   userControlTabFor: () => null,
@@ -172,6 +180,7 @@ const teamBrowser: TeamApiBrowser = {
   stopTeach: () => [],
   releaseUserControl: () => {},
   releaseUserControlHeldBy: () => {},
+  releaseUserControlRefused: () => {},
   close: unused,
   capturePreview: unused,
   setVisible: unused,
@@ -184,9 +193,7 @@ const teamBrowser: TeamApiBrowser = {
   importSignIn: unused,
 };
 
-/** What the stand-ins were asked to do, in order. */
 const calls: string[] = [];
-/** What the host answers for its sign-ins. A step sets it. */
 let signedIn: McpSignInState[] = [];
 const signIns: TeamApiMcpSignIns = {
   start: (input: TestMcpServerInput) => Effect.sync(() => void calls.push(`start ${input.config.url}`)),
@@ -211,12 +218,18 @@ const signIns: TeamApiMcpSignIns = {
     }),
 };
 const relay: TeamApiSignInRelay = {
-  startMcp: (memberId, input) =>
+  startMcp: (memberId, input, deepLinkRedirectUrl) =>
     Effect.sync(() => {
-      calls.push(`relay ${input.config.url}`);
+      calls.push(
+        deepLinkRedirectUrl ? `relay ${input.config.url} ${deepLinkRedirectUrl}` : `relay ${input.config.url}`,
+      );
       return { flowId: `flow-${memberId}`, expiresAt: Date.now() + 60_000 };
     }),
-  startProvider: unused,
+  startProvider: (memberId, provider) =>
+    Effect.sync(() => {
+      calls.push(`relay-provider ${provider}`);
+      return { flowId: `flow-${memberId}`, expiresAt: Date.now() + 60_000 };
+    }),
   startProviderAccount: unused,
   startLink: () => assert.fail("Not used by this check."),
   status: () => assert.fail("Not used by this check."),
@@ -239,10 +252,6 @@ interface Host {
 
 let host: Host | null = null;
 
-/**
- * Starts the host on the profile, as the app does at each launch. The stores keep their files.
- * `withAccess` gives it the access entries, as a host with `mcp-access-v1` has.
- */
 async function startHost(withAccess = false): Promise<Host> {
   const database = new OpenBotDatabase(userData);
   const agentStore = new AgentStore(userData, home, database);
@@ -256,7 +265,6 @@ async function startHost(withAccess = false): Promise<Host> {
   assert.equal(await runCauseEffect(access.load()), true, "The MCP access file did not load.");
   assert.equal(await runCauseEffect(roles.load()), true, "The roles file did not load.");
   await runCauseEffect(sidebar.initialize());
-  // The stores only: `AgentService.initialize` would start the provider CLIs, which no step needs.
   await runCauseEffect(agentStore.initialize());
   await runCauseEffect(mailbox.initialize());
   await runCauseEffect(team.initialize());
@@ -300,22 +308,20 @@ function current(): Host {
 }
 
 const CURRENT = teamCapabilitiesForProtocol(TEAM_PROTOCOL_V9);
-/** A released client: the current list without `mcp-member-access-v1` and `mcp-access-v1`. */
 const RELEASED = CURRENT.filter(
   (capability) => capability !== MCP_MEMBER_ACCESS_CAPABILITY && capability !== MCP_ACCESS_CAPABILITY,
 );
 
-/** One protocol 9 request. A current client sends `mcp-member-access-v1`. */
 async function call(
   method: string,
   path: string,
-  input: { token?: string; body?: unknown; capabilities?: readonly string[] } = {},
+  input: { token?: string; body?: unknown; capabilities?: readonly string[]; protocol?: number } = {},
 ): Promise<{ status: number; body: unknown }> {
   const headers: Record<string, string> = {
     Accept: "application/json",
-    [TEAM_PROTOCOL_VERSION_HEADER]: String(TEAM_PROTOCOL_V9),
+    [TEAM_PROTOCOL_VERSION_HEADER]: String(input.protocol ?? TEAM_PROTOCOL_V9),
     [TEAM_APP_VERSION_HEADER]: HOST_VERSION,
-    [TEAM_CAPABILITIES_HEADER]: (input.capabilities ?? CURRENT).join(","),
+    ...teamCapabilityHeaders(input.protocol ?? TEAM_PROTOCOL_V9, input.capabilities ?? CURRENT),
   };
   if (input.body !== undefined) headers["Content-Type"] = "application/json";
   if (input.token) headers.Authorization = `Bearer ${input.token}`;
@@ -371,7 +377,6 @@ async function readAccess(token: string): Promise<McpAccessSnapshot> {
   return decodeMcpAccessSnapshot(response.body);
 }
 
-/** A replace on the revision that the host holds now, or on `revision`. */
 async function setAccess(token: string, mcpServerId: string, access: McpServerAccess, revision?: number) {
   const body = { revision: revision ?? (await readAccess(token)).revision, mcpServerId, access };
   return call("POST", MCP_ACCESS_ROUTES.set, { token, body });
@@ -407,7 +412,6 @@ async function listedNames(token: string): Promise<string[]> {
 const NOT_YOURS = sourceText("error.team.mcpServerNotYours");
 const ADMIN_REQUIRED = sourceText("error.team.adminRequired");
 
-/** Asserts that the host refused with 403 and `message`. */
 function refused(response: { status: number; body: unknown }, message: string, label: string): void {
   assert.equal(response.status, 403, `${label}: expected 403, got ${response.status}.`);
   assert.equal(JSON.stringify(response.body).includes(message), true, `${label}: ${JSON.stringify(response.body)}`);
@@ -469,6 +473,17 @@ try {
       body: { config: { ...renamed, enabled: true } },
     });
     assert.equal(relayed.status, 200, `Relay returned ${relayed.status}: ${JSON.stringify(relayed.body)}`);
+    const deepLinked = await call("POST", SIGN_IN_RELAY_DEEP_LINK_ROUTES.mcpStart, {
+      token: memberToken,
+      body: { config: { ...renamed, enabled: true } },
+    });
+    assert.equal(deepLinked.status, 200, `Deep link relay returned ${deepLinked.status}.`);
+    const older = await call("POST", SIGN_IN_RELAY_DEEP_LINK_ROUTES.mcpStart, {
+      token: memberToken,
+      body: { config: { ...renamed, enabled: true } },
+      capabilities: CURRENT.filter((capability) => capability !== SIGN_IN_RELAY_DEEP_LINK_CAPABILITY),
+    });
+    assert.equal(older.status, 400, `A client without the deep link capability got ${older.status}.`);
     const app = await call("POST", MCP_SIGN_IN_APP_ROUTES.save, {
       token: memberToken,
       body: { mcpServerId: memberRow.id, clientId: "member-app", clientSecret: null, scope: "" },
@@ -482,6 +497,7 @@ try {
     assert.deepEqual(calls, [
       `start ${MEMBER_URL}`,
       `relay ${MEMBER_URL}`,
+      `relay ${MEMBER_URL} openbot://mcp-auth`,
       `save-app ${memberRow.id}`,
       `sign-out ${memberRow.id}`,
     ]);
@@ -504,6 +520,10 @@ try {
         body: { mcpServerId: ownerRow.id },
       }),
       relay: await call("POST", SIGN_IN_RELAY_ROUTES.mcpStart, { token: memberToken, body: { config: ownerRow } }),
+      deepLinkRelay: await call("POST", SIGN_IN_RELAY_DEEP_LINK_ROUTES.mcpStart, {
+        token: memberToken,
+        body: { config: ownerRow },
+      }),
       app: await call("POST", MCP_SIGN_IN_APP_ROUTES.remove, {
         token: memberToken,
         body: { mcpServerId: ownerRow.id },
@@ -540,6 +560,32 @@ try {
     return { provider: provider.status };
   });
 
+  await step("Devin's sign-in is relayed only on the provider-sign-in-relay-v2 route", async () => {
+    calls.length = 0;
+    const devin = { provider: "devin" };
+    const v10 = { protocol: TEAM_PROTOCOL_V10, capabilities: teamCapabilitiesForProtocol(TEAM_PROTOCOL_V10) };
+    const route = PROVIDER_SIGN_IN_RELAY_V2_ROUTES.start;
+    const member = await call("POST", route, { ...v10, token: memberToken, body: devin });
+    refused(member, ADMIN_REQUIRED, "member Devin relay");
+    const v1 = await call("POST", SIGN_IN_RELAY_ROUTES.providerStart, { ...v10, token: ownerToken, body: devin });
+    assert.equal(v1.status, 400, `The v1 route took Devin: ${v1.status}.`);
+    const older = await call("POST", route, {
+      ...v10,
+      token: ownerToken,
+      body: devin,
+      capabilities: v10.capabilities.filter((capability) => capability !== PROVIDER_SIGN_IN_RELAY_V2_CAPABILITY),
+    });
+    assert.equal(older.status, 400, `A client without the capability got ${older.status}.`);
+    const v9 = await call("POST", route, { token: ownerToken, body: devin });
+    assert.equal(v9.status, 400, `A protocol 9 client got ${v9.status}.`);
+    assert.deepEqual(calls, [], "A refused call reached the relay.");
+    const owner = await call("POST", route, { ...v10, token: ownerToken, body: devin });
+    assert.equal(owner.status, 200, `The owner's Devin relay returned ${owner.status}: ${JSON.stringify(owner.body)}.`);
+    assert.deepEqual(calls, ["relay-provider devin"], "The host did not start Devin's sign-in.");
+    calls.length = 0;
+    return { member: member.status, v1: v1.status, older: older.status, v9: v9.status, owner: owner.status };
+  });
+
   await step("who added each server stays after a restart; the owner still changes any row", async () => {
     await stopHost();
     host = await startHost();
@@ -569,7 +615,6 @@ try {
     return { owners: Object.keys(file.owners).length };
   });
 
-  // The host of the steps above has no access entries: `mcp-access-v1` is absent there.
   await step("a host without the access entries does not serve the access routes", async () => {
     const response = await call("POST", MCP_ACCESS_ROUTES.read, { token: await login(OWNER), body: {} });
     assert.equal(response.status, 400, `Expected 400, got ${response.status}.`);
@@ -601,7 +646,6 @@ try {
     const first = await setAccess(owner, ownerRow.id, { ...OPEN, agents: ["agent-a"] }, revision);
     assert.equal(first.status, 200, `Set returned ${first.status}: ${JSON.stringify(first.body)}`);
     assert.equal(decodeMcpAccessSnapshot(first.body).revision, revision + 1);
-    // A second admin who read before that save.
     const stale = await setAccess(owner, ownerRow.id, { ...OPEN, everyone: "none" }, revision);
     assert.equal(stale.status, 409, `A stale replace returned ${stale.status}.`);
     assert.ok(JSON.stringify(stale.body).includes(sourceText("error.team.mcpAccessStale")), JSON.stringify(stale.body));
@@ -627,7 +671,6 @@ try {
       NOT_YOURS,
       "toggle",
     );
-    // A released client of the member gets the same answer: the host holds the level.
     const released = await call("GET", MCP_ROUTES.list, {
       token: member,
       capabilities: CURRENT.filter((capability) => capability !== MCP_ACCESS_CAPABILITY),
@@ -636,14 +679,12 @@ try {
       servers(released.body).map((server) => server.name),
       [],
     );
-    // A test spends the stored sign-in of the address: the row and a new row on its address are refused.
     refused(await call("POST", MCP_ROUTES.test, { token: member, body: { config: ownerRow } }), NOT_YOURS, "test");
     refused(
       await call("POST", MCP_ROUTES.test, { token: member, body: { config: httpServer("trello-copy", OWNER_URL) } }),
       NOT_YOURS,
       "test of a new row on the address",
     );
-    // A saved row on the address would use its stored sign-in too: a new row and a moved row are refused.
     refused(
       await call("POST", MCP_ROUTES.save, { token: member, body: { config: httpServer("trello-copy", OWNER_URL) } }),
       NOT_YOURS,
@@ -658,7 +699,6 @@ try {
     const removed = await call("POST", MCP_ROUTES.remove, { token: member, body: { mcpServerId: own.id } });
     assert.equal(removed.status, 200, `Removing the member's own row returned ${removed.status}.`);
     assert.deepEqual(await listedNames(member), []);
-    // The sign-in state of the server stays with the people who can see it.
     signedIn = [{ mcpServerId: ownerRow.id, signedIn: true }];
     const states = await call("POST", MCP_SIGN_IN_ROUTES.list, { token: member, body: {} });
     assert.deepEqual(states.body, [], "A member read the sign-in state of a hidden server.");
@@ -676,7 +716,6 @@ try {
     assert.equal((await setAccess(owner, ownerRow.id, OPEN)).status, 200);
     const own = await save(member, httpServer("trello-mine", OWNER_URL));
     assert.equal((await setAccess(owner, ownerRow.id, { ...OPEN, everyone: "none" })).status, 200);
-    // The member keeps their own row, but not the stored sign-in of its address.
     assert.deepEqual(await listedNames(member), ["trello-mine"]);
     refused(await call("POST", MCP_ROUTES.test, { token: member, body: { config: own } }), NOT_YOURS, "test");
     refused(

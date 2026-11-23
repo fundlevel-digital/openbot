@@ -632,7 +632,7 @@ try {
   });
   await continueButton.waitFor();
   const composer = page.getByRole("textbox", {
-    name: english("conversation.threads.view.placeholder", { name: agentName, title: branchTitle }),
+    name: english("conversation.threads.view.placeholder", { name: agentName }),
   });
   const draft = "Keep this unsent draft.";
   await composer.fill(draft);

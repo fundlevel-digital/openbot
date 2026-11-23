@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { ProviderRuntimeSnapshot } from "@openbot/contracts/ipc";
-import { CodexCliError, resolveCodexCli, resolveInstalledFirst } from "../src/backend/cli";
+import { CodexCliError, compareReleases, resolveCodexCli, resolveInstalledFirst } from "../src/backend/cli";
 import { runCauseEffect } from "../src/backend/effect-boundary";
 import { ProviderRuntimeManager } from "../src/main/provider-runtime-manager";
 import { loadAgentRuntimeLock } from "./agent-runtime-lock";
@@ -77,7 +77,7 @@ try {
   const supported = await cli(join(root, "managed-new", "codex"), requiredVersion);
   const oldManagedBytes = await readFile(oldManaged);
   await runCauseEffect(manager.initialize());
-  assert.equal(lock.codex.version, requiredVersion);
+  assert.ok(compareReleases(lock.codex.version, requiredVersion) >= 0);
   assert.equal(manager.getStatus().providers.codex.version, oldVersion);
   await assert.rejects(
     runCauseEffect(resolveCodexCli({ bundledExecutable: oldManaged, systemCandidates: [] })),
@@ -96,10 +96,12 @@ try {
   assert.deepEqual(await readFile(oldSystem), Buffer.from(`#!/bin/sh\necho "codex-cli ${oldVersion}"\n`));
   pass("A supported managed runtime is selected without changing the user's older CLI");
   const failed = downloadFailure();
-  manager.startUpdateChecks({ updateInstalled: true });
+  manager.startUpdateChecks();
   await runCauseEffect(manager.checkForUpdates()).catch(() => undefined);
   await failed;
-  report.requestedReplacement = requests.some((url) => url.includes("/releases/download/rust-v0.166.0/codex-package-"));
+  report.requestedReplacement = requests.some((url) =>
+    url.includes(`/releases/download/${lock.codex.tag}/codex-package-`),
+  );
   assert.equal(report.requestedReplacement, true);
   assert.deepEqual(await readFile(oldManaged), oldManagedBytes);
   pass("The app-upgrade path requests the pinned managed replacement and preserves the old install on failure");

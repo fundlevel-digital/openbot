@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { isNewerRelease } from "@openbot/contracts/release-version";
 import { createOpenBotLogger } from "@openbot/logging";
 import { parse } from "yaml";
 import { z } from "zod";
 import { DESKTOP_RELEASE_FEED_URL, desktopReleaseAssetUrl } from "../src/main/desktop-release-source";
-import { newerRelease } from "../src/main/host-release-service";
 
 const logger = createOpenBotLogger("desktop-feed-promotion");
 const schema = z.object({
@@ -26,7 +26,7 @@ export function checkDesktopFeedPromotion(candidateSource: string, previousSourc
     if (candidateSource !== previousSource) throw new Error("A published desktop version cannot change.");
     return;
   }
-  if (!newerRelease(candidate.version, previous.version))
+  if (!isNewerRelease(candidate.version, previous.version))
     throw new Error("The desktop feed cannot move to an older version.");
 }
 

@@ -30,6 +30,7 @@ const browser: TeamApiBrowser = {
   takeUserControl: unused,
   releaseUserControl: unused,
   releaseUserControlHeldBy: unused,
+  releaseUserControlRefused: unused,
   stop: unused,
   importSignIn: unused,
   startTeach: unused,
@@ -58,6 +59,7 @@ describe("card takeover view authorization", () => {
         stop: unused,
         closeMemberSession: unused,
         revokeTeamSession: unused,
+        closeRefusedSessions: unused,
       };
       const request = new IncomingMessage(new Socket());
       request.method = "POST";
@@ -95,7 +97,7 @@ describe("card takeover view authorization", () => {
           },
           empty: unused,
         },
-        { browser, browserView },
+        { browser, browserView, blockedAgentIds: () => new Set() },
       );
       expect(outcome).toBe("handled");
       expect(sessions).toEqual([

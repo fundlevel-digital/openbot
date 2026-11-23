@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import type { HostReleaseStatus, UpdateStatus } from "@openbot/contracts/ipc";
+import { isNewerRelease, isValidSemver } from "@openbot/contracts/release-version";
 import { Deferred, Effect, Exit, Schema } from "effect";
 import { parse } from "yaml";
 import { DESKTOP_RELEASE_FEED_URL, desktopReleaseAssetUrl } from "./desktop-release-source";
-import { isValidSemver } from "./update-service";
 
 class ReleaseCheckFailed extends Schema.TaggedError<ReleaseCheckFailed>()("ReleaseCheckFailed", {}) {}
 
@@ -15,7 +15,6 @@ const ReleaseManifest = Schema.Struct({
 type ReleaseTarget = { feed: string; asset: (version: string) => string };
 type ReleaseRequest = (url: string, init: RequestInit) => Promise<Response>;
 
-/** Only published desktop targets have a compatible release feed. */
 function releaseTarget(platform: NodeJS.Platform, arch: string): ReleaseTarget | null {
   if (arch !== "x64" && arch !== "arm64") return null;
   if (platform === "linux")
@@ -47,7 +46,6 @@ interface HostReleaseOptions {
   fetch?: ReleaseRequest;
 }
 
-/** Reads only the install marker. No command or application file is executed. */
 export const readInstallationMode = Effect.fn("HostRelease.readInstallationMode")(function* () {
   return yield* Effect.tryPromise({
     try: (signal) => readFile("/opt/OpenBot/hosted/mode", { encoding: "utf8", signal }),
@@ -58,7 +56,6 @@ export const readInstallationMode = Effect.fn("HostRelease.readInstallationMode"
   );
 });
 
-/** Read-only release discovery. Installation stays with the existing updater or administrator. */
 export class HostReleaseService {
   readonly #options: HostReleaseOptions;
   readonly #target: ReleaseTarget | null;
@@ -85,8 +82,6 @@ export class HostReleaseService {
     if (!this.#options.packaged) return "unavailable";
     if (this.#options.updateStatus().managedByHost) return "host-manager";
     if (this.#options.platform === "linux") {
-      // A hosted or self-installed server, or a container of openbot-instance, whose host installs
-      // updates on request.
       if (this.#options.updateStatus().phase !== "unsupported") return "self-update";
       if (this.#options.installationMode === "container") return "container";
       if (this.#options.environment.OPENBOT_HOSTED_SERVER === "1") return "hosted";
@@ -109,7 +104,7 @@ export class HostReleaseService {
         catch: () => new ReleaseCheckFailed(),
       });
       this.#latestVersion = version;
-      this.#phase = newerRelease(version, this.#options.currentVersion) ? "available" : "up-to-date";
+      this.#phase = isNewerRelease(version, this.#options.currentVersion) ? "available" : "up-to-date";
     }).pipe(
       Effect.catch(() =>
         Effect.sync(() => {
@@ -172,14 +167,4 @@ export function fetchLatestLinuxRelease(arch: string, request: ReleaseRequest, s
   const target = releaseTarget("linux", arch);
   if (!target) return Promise.reject(new Error("No release for this machine"));
   return fetchLatestRelease(target, request, signal);
-}
-
-export function newerRelease(candidate: string, current: string): boolean {
-  const left = candidate.split(".").map(Number);
-  const right = current.split(/[.+-]/u).slice(0, 3).map(Number);
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (left[index] ?? 0) - (right[index] ?? 0);
-    if (difference !== 0) return difference > 0;
-  }
-  return current.split("+", 1)[0]?.includes("-") ?? false;
 }

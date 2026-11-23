@@ -115,6 +115,10 @@ const browser: AgentBrowserHost = {
   unshareThread: () => {},
   agentTab: () => null,
   listTabs: () => tabs,
+  toolCanUseTab: (params, tabId) =>
+    tabs.some(
+      (tab) => tab.id === tabId && tab.ownerAgentId === params.ownerAgentId && tab.ownerThreadId === params.threadId,
+    ),
   beginTakeover: () => Effect.void,
   endTakeover: (tabId) => endedTabs.push(tabId),
   prepareSecret: () =>
@@ -122,6 +126,7 @@ const browser: AgentBrowserHost = {
       request: { method: "password", origin: "https://fixture.example.test", digits: 6 },
       agentScriptedOrigin: false,
       vaultFillable: false,
+      withCode: false,
       submit: () =>
         Effect.sync(() => {
           secretSubmitting = true;

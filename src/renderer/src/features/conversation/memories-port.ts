@@ -1,8 +1,3 @@
-// The seam that lets one memories page serve an agent and a channel.
-//
-// Everything the page renders is owner-agnostic; only the five calls, the event filter and three
-// words of copy are not. They live here, so `AgentMemoriesSettings` names no owner at all.
-
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type {
   AgentMemorySelectionState,
@@ -13,9 +8,7 @@ import type {
 
 export interface MemoriesPort {
   ownerId: string;
-  /** The name the page shows the user, such as `Chief` or `Project Falcon`. */
   ownerLabel: string;
-  /** The word the page reads in its sentences: "This agent has no saved memories yet." */
   ownerNoun: "agent" | "channel";
   /**
    * Null for unlimited storage, or when this window does not know the legacy quota of a joined
@@ -31,11 +24,9 @@ export interface MemoriesPort {
   update: (memoryId: string, text: string) => Promise<void>;
   remove: (memoryId: string) => Promise<void>;
   clear: () => Promise<void>;
-  /** Returns the unsubscribe function. The owner-id filter belongs to the port, not the page. */
   subscribe: (reload: () => void) => () => void;
 }
 
-/** The host calls an agent's memories make. The desktop sends them through preload. */
 export type AgentMemoriesApi = Pick<
   OpenBotDesktopApi["agent"],
   | "listMemories"
@@ -79,7 +70,6 @@ export function agentMemoriesPort(
   };
 }
 
-/** The host calls a channel's memories make. The desktop sends them through preload. */
 export type ChannelMemoriesApi = Pick<
   OpenBotDesktopApi["agent"],
   | "listChannelMemories"

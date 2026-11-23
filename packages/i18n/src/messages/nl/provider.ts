@@ -111,9 +111,17 @@ export const messages = {
   "provider.picker.download": "Download van {name}",
   "provider.picker.search": "Modellen zoeken",
   "provider.picker.noMatches": "Geen modellen gevonden.",
+  "provider.picker.openrouterNoMatches":
+    "Geen modellen gevonden. Je instellingen voor privacy, providers en guardrails op openrouter.ai kunnen modellen uit deze lijst verbergen.",
+  "provider.picker.workspaceOnlyUnavailable":
+    "Deze modellen werken niet met ‘Alleen werkruimte’ op Windows en Linux. Wijzig ‘Machtigingen’ in de agentinstellingen om ze te gebruiken.",
   "provider.picker.olderModels": "Oudere modellen",
   "provider.picker.olderModelsList": "Oudere {name}-modellen",
-  "provider.picker.noModels": "{name} heeft geen modellen beschikbaar.",
+  "provider.picker.noModels":
+    "Hier staan geen modellen van {name}. Als ze uitstaan, kan een beheerder ze aanzetten in Serverinstellingen > Aanbieders > {name} > Modellen.",
+  "provider.picker.endpointModelsInCustom":
+    "{name} draait je eigen endpoints. Hun modellen staan op het tabblad Eigen.",
+  "provider.picker.showCustomModels": "Modellen tonen",
   "provider.picker.museNoModels":
     "Muse heeft geen modellen voor dit account gestuurd. Muse is mogelijk niet beschikbaar in het land waar deze agent draait. Kies een model van een andere provider.",
   "provider.picker.customEmpty":
@@ -131,6 +139,7 @@ export const messages = {
   "provider.picker.effort": "Denkniveau",
   "provider.picker.effortLabel": "Redeneerniveau van de agent",
   "provider.picker.effortFixed": "{effort}, vastgezet door {provider}",
+  "provider.picker.effortLimited": "Je Claude-instellingen of je organisatie beperken de inspanning tot {effort}.",
   "provider.picker.fast": "Snel",
   "provider.picker.fastText": "Snellere antwoorden, meer verbruik",
   "provider.picker.speed": "Snelheid",
@@ -141,6 +150,8 @@ export const messages = {
   "provider.picker.selectEffort": "Kies niveau",
   "provider.picker.custom": "Eigen",
   "provider.picker.cliReady": "{cli} gereed",
+  "provider.picker.modelSourceProvider": "Gebruikt {name} uit je {cli}-instellingen",
+  "provider.picker.modelSourceCatalog": "Gebruikt een modellijst uit je {cli}-instellingen",
   "provider.status.signInRequired": "Inloggen vereist",
   "provider.model.free": "Gratis",
   "provider.model.new": "Nieuw",
@@ -205,6 +216,7 @@ export const messages = {
   "provider.openCodeKey.reconnectFailed": "Kan niet opnieuw verbinden.",
   "provider.account.add": "Account toevoegen",
   "provider.account.addLabel": "Nog een {name}-account toevoegen",
+  "provider.account.addWithCode": "Account toevoegen met code",
   "provider.account.count": { one: "{count} account", other: "{count} accounts" },
   "provider.account.numbered": "Account {number}",
   "provider.account.apiKey": "API-sleutel",
@@ -288,6 +300,8 @@ export const messages = {
     "Een opgeslagen Gemini API-sleutel wordt gebruikt in plaats van een Google-aanmelding. Verwijder de sleutel om een Google-abonnement en de modellen ervan te gebruiken.",
   "provider.settings.claudeKeyInUse":
     "Anthropic brengt het API-tegoed van de sleutel in rekening, niet je Claude-abonnement. Kies het API-sleutelaccount in het modelmenu van een agent. Als Claude niet is ingelogd, gebruiken alle agents de sleutel.",
+  "provider.settings.museKeyInUse":
+    "Muse gebruikt deze sleutel, niet je login. Verwijder de sleutel om je login te gebruiken.",
   "provider.settings.addKey": "Sleutel toevoegen",
   "provider.settings.changeKey": "Sleutel wijzigen",
   "provider.settings.runtime": "Runtime",
@@ -297,6 +311,8 @@ export const messages = {
   "provider.settings.versionDownloaded": "{version} · gedownload door OpenBot",
   "provider.settings.otherVersionInstalledByUser": "Niet in gebruik: {version} · door jou geïnstalleerd",
   "provider.settings.otherVersionDownloaded": "Niet in gebruik: {version} · gedownload door OpenBot",
+  "provider.settings.installedVersionIncomplete":
+    "Sommige modellen hebben een onderdeel nodig dat deze versie niet heeft. Download de versie van OpenBot om ze te gebruiken.",
   "provider.settings.useInstalledVersion": "Geïnstalleerde gebruiken",
   "provider.settings.useDownloadedVersion": "Versie van OpenBot gebruiken",
   "provider.settings.update": "Updaten",
@@ -305,10 +321,15 @@ export const messages = {
   "provider.settings.cache": "Cache",
   "provider.settings.promptCache": "Promptcache",
   "provider.settings.promptCacheDescription":
-    "Hoelang Claude de context van een agent tussen beurten in de cache bewaart.",
+    "Hoe lang Claude en Pi de context van een agent tussen beurten in de cache houden.",
   "provider.settings.promptCacheHour": "1 uur",
-  "provider.settings.promptCacheDefault": "Standaard van Claude Code",
+  "provider.settings.promptCacheDefault": "Standaard van de provider",
   "provider.settings.promptCacheLoadFailed": "Kan de promptcachetijd van deze server niet laden.",
+  "provider.settings.cacheExpiryCompaction": "Comprimeren voordat de cache verloopt",
+  "provider.settings.cacheExpiryCompactionDescription":
+    "Als een chat met 200K of meer tokens context inactief is met een cache van 1 uur, comprimeert de agent de context voordat de cache verloopt. Dan leest het volgende bericht niet de hele context opnieuw zonder cache.",
+  "provider.settings.cacheExpiryCompactionLoadFailed":
+    "De compressie-instelling van deze server kon niet worden geladen.",
   "provider.settings.claudeSetup": "Claude Code",
   "provider.settings.claudeUserSetup": "Mijn Claude Code-configuratie gebruiken",
   "provider.settings.claudeUserSetupDescription":
@@ -323,6 +344,29 @@ export const messages = {
   "provider.settings.compactWindowDefault": "Standaard van Claude Code",
   "provider.settings.compactWindowTokens": "{size} tokens",
   "provider.settings.compactWindowLoadFailed": "Kan de compressiegrootte van deze server niet laden.",
+  "provider.settings.environment": "Omgeving",
+  "provider.settings.environmentVariables": "Variabelen",
+  "provider.settings.environmentDescription":
+    "API-sleutels, basis-URL’s en andere instellingen die elk {name}-proces krijgt. Een wijziging geldt als de lopende beurten klaar zijn.",
+  "provider.settings.environmentCodexHint":
+    "OPENAI_BASE_URL stuurt met OPENAI_API_KEY als sleutel de modelverzoeken van ChatGPT naar dat adres.",
+  "provider.settings.environmentShellNote": "De opdrachten die agents uitvoeren, kunnen deze waarden lezen.",
+  "provider.settings.environmentAdd": "Variabele toevoegen",
+  "provider.settings.environmentNamePlaceholder": "VARIABLE_NAME",
+  "provider.settings.environmentValuePlaceholder": "Waarde",
+  "provider.settings.environmentSaved": "Opgeslagen",
+  "provider.settings.environmentSensitive": "Gevoelig",
+  "provider.settings.environmentNameLabel": "Variabelenaam {index}",
+  "provider.settings.environmentValueLabel": "Waarde van {name}",
+  "provider.settings.environmentSensitiveLabel": "{name} geheimhouden",
+  "provider.settings.environmentRemoveLabel": "{name} verwijderen",
+  "provider.settings.environmentUnnamed": "variabele {index}",
+  "provider.settings.environmentPending":
+    "Opslaan start {name} opnieuw als de lopende beurten klaar zijn. Gevoelige waarden blijven op de server.",
+  "provider.settings.environmentDone": "Opgeslagen. {name} start opnieuw als de lopende beurten klaar zijn.",
+  "provider.settings.environmentDiscard": "Verwerpen",
+  "provider.settings.environmentSave": "Opslaan",
+  "provider.settings.environmentLoadFailed": "Kan de variabelen van {name} niet laden.",
   "provider.settings.models": "Modellen",
   "provider.settings.modelsDescription": {
     one: "{shown} van {count} model staat in de modelkiezer.",
@@ -352,4 +396,5 @@ export const messages = {
   "provider.settings.endpointModels": { one: "{url} · 1 model", other: "{url} · {count} modellen" },
   "provider.settings.disconnectLocalOnly":
     "OpenBot meldt {provider} af op deze computer. De {provider}-CLI in je terminal blijft aangemeld.",
+  "provider.settings.updateAll": "Alles updaten",
 } as const satisfies PartialTranslation<typeof source>;

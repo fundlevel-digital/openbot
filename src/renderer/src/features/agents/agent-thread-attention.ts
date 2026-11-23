@@ -1,11 +1,10 @@
-import type { AgentApproval, AgentTask } from "@openbot/contracts/ipc";
+import type { AgentApproval, AgentTask, BrowserTakeoverRequest } from "@openbot/contracts/ipc";
 import type { AgentProfile } from "@openbot/ui/data";
 import type { SidebarApproval, SidebarAttention } from "@openbot/ui/features/sidebar/sidebar-agent-states";
 import { attentionAgentId, attentionKey, type PendingAttentionPrompts } from "./agent-runtime-snapshot";
 
 export interface AgentThreadAttentionInput {
   agents: readonly Pick<AgentProfile, "id" | "threadId">[];
-  /** By `attentionKey`. */
   pendingPrompts: PendingAttentionPrompts;
   approvals: readonly AgentApproval[];
   /** Only a listed, open side thread can become an agent-row destination. Channels stay separate. */
@@ -55,4 +54,16 @@ export function agentThreadAttention(input: AgentThreadAttentionInput): {
     targets[agent.id] = { threadId, taskId: side?.id ?? null };
   }
   return { pendingPrompts, pendingApprovals, targets };
+}
+
+export function agentTakeoverTabIds(
+  agents: readonly Pick<AgentProfile, "id" | "threadId">[],
+  takeovers: readonly Pick<BrowserTakeoverRequest, "agentId" | "threadId" | "tabId">[],
+): Record<string, string> {
+  const agentThreads = new Map(agents.map((agent) => [agent.id, agent.threadId]));
+  return Object.fromEntries(
+    takeovers
+      .filter((request) => agentThreads.get(request.agentId) === request.threadId)
+      .map((request) => [request.agentId, request.tabId]),
+  );
 }

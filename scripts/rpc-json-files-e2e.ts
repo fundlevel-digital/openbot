@@ -106,6 +106,7 @@ const { RemoteWorkflowError } = await import("../src/main/remote-service-effects
 const unused = () => Effect.die(new Error("Unexpected browser operation."));
 const agentBrowser: AgentBrowserHost = {
   listTabs: () => [],
+  toolCanUseTab: () => false,
   beginTakeover: unused,
   endTakeover: () => {},
   userControlTabFor: () => null,
@@ -134,6 +135,7 @@ const teamBrowser: TeamApiBrowser = {
   takeUserControl: unused,
   releaseUserControl: () => {},
   releaseUserControlHeldBy: () => {},
+  releaseUserControlRefused: () => {},
   close: unused,
   capturePreview: unused,
   setVisible: unused,

@@ -1,8 +1,9 @@
 # Desktop fork updates
 
-The `codex/remove-capacity-limits` branch contains the Electron desktop application. The default
-branch of `kareem717/OpenBot` contains a different application. Keep the histories and update feeds
-separate.
+The fork's `main` branch contains the Electron desktop application. The earlier default branch
+used a different application; the reconciliation kept that history as a parent. GitHub redirects
+`kareem717/OpenBot` to `fundlevel-digital/openbot`. Keep the desktop update feed separate from
+upstream releases. Keep the current worktree branch name during an upgrade.
 
 ## Release addresses
 
@@ -26,7 +27,8 @@ remain normal update versions because the desktop reads the explicit generic fee
 
 ## Build and check
 
-A push to the desktop branch runs `.github/workflows/desktop-fork.yml`. It checks the affected
+A push to `main`, `codex/remove-capacity-limits`, or `conductor/latest-version-upgrade` runs
+`.github/workflows/desktop-fork.yml`. The workflow also supports a manual run. It checks the affected
 TypeScript projects, runs the real-service capacity and feed checks, and builds these artifacts:
 
 - `desktop-linux-x64`: the self-hosted server AppImage and Linux update manifest.
@@ -125,8 +127,8 @@ driver must use Electron's display and must not be published as a general provid
 Fetch the required `nightly-labs/openbot` release and merge it into the desktop branch. Preserve
 the capacity changes and the isolated feed addresses. Resolve conflicts in source, run the branch
 workflow, and complete the upgrade audit before publishing the next numeric desktop version.
-Do not point this branch at the repository-wide latest release, move the other application's
-default branch, or publish desktop packages under its version tags.
+Do not point this branch at upstream's automatic update feed or publish desktop packages under
+upstream version tags.
 
 ## Fork patches replaced by upstream
 
@@ -284,3 +286,31 @@ A slow host is a different fault. If the Support log shows `[timeout/connect/...
 needs 20 seconds or more to open its channels, restart `openbot.service`. Upstream commit
 `4c8d48d7c0` ("Keep a host answering devices when one device's setup stops") changes this area.
 The fork has it from the v0.71.0 merge. It is not confirmed that it fixes this fault.
+
+## Upgrade from 0.71.0 to 0.77.0
+
+Use the published `v0.77.0` tag as the upstream input. Keep the fork additions. The owner directed
+this on 2026-11-23, including the Cursor billing pause. Upstream #10573 detects the Cursor
+payment-method message as a plan limit; its chunk detector must not take precedence over the
+fork's billing result.
+
+Upstream protocol 10 has a frozen baseline of 256 official capabilities. Keep that baseline
+unchanged. Carry the five extra fork capabilities as explicit protocol 10 extensions, and project
+older protocol lists to their released limits while keeping the fork capabilities of a fork peer.
+Do not put extra names in the official baseline fixture.
+
+Upstream moves memory controls into `ServerMemorySection` and MCP controls into the marketplace.
+Keep the unlimited-memory gate and paged requests in those new owners. Retain the fork's thread
+cards and question context while using upstream's current message and settings APIs.
+
+Schema versions 62 through 69 run at startup. The old 0.71.0 application refuses schema 69.
+An old package can recover an activation failure only before the database migrates. After migration,
+use a forward repair. Never reset or remove a user's database to start an old package.
+
+Check schema parity and released-schema data preservation, then the affected fork E2E scripts.
+Build and verify both native packages in CI. Preserve hosted service overrides, the network namespace,
+Agent Relay services, and the Mac application-data directory during installation.
+
+Focused checks for this merge passed: schema parity (4), released-schema upgrades (131), database (92), secret redaction (71), IPC coverage (14), authenticated browser-view permissions (3), protocol 10, legacy clients, 38,904 wire comparisons, split-code fields, versioned JSON stores, account-session files, history review (14), and the Node and renderer type projects. The commit hook repeats the required staged checks. Native packages and installed runtime checks remain part of completion.
+
+The merge-resolution lint check retains two upstream `noConfusingVoidType` warnings in `channel-service.ts`. The `void` types describe Effect operations that return no value. Replacing them with `undefined` only to silence the warnings would change those operation contracts.
