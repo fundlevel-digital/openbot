@@ -308,11 +308,23 @@ An old package can recover an activation failure only before the database migrat
 use a forward repair. Never reset or remove a user's database to start an old package.
 
 Check schema parity and released-schema data preservation, then the affected fork E2E scripts.
-Build and verify both native packages in CI. Preserve hosted service overrides, the network namespace,
-Agent Relay services, and the Mac application-data directory during installation.
+Build and verify both native packages in CI. The owner can authorize the Mac and VPS builders
+when CI cannot start. Use the pinned build tools and the same package checks. Preserve hosted
+service overrides, the network namespace, Agent Relay services, and the Mac application-data
+directory during installation.
 
 Focused checks for this merge passed: schema parity (4), released-schema upgrades (131), database (92), secret redaction (71), IPC coverage (14), authenticated browser-view permissions (3), protocol 10, legacy clients, 38,904 wire comparisons, split-code fields, versioned JSON stores, account-session files, history review (14), and the Node and renderer type projects. The commit hook repeats the required staged checks. Native packages and installed runtime checks remain part of completion.
 
 The merge-resolution lint check retains two upstream `noConfusingVoidType` warnings in `channel-service.ts`. The `void` types describe Effect operations that return no value. Replacing them with `undefined` only to silence the warnings would change those operation contracts.
 
 The Cursor billing E2E passed after excluding the payment-method text from upstream's plan-limit chunk detector. The complete-answer detector still requires the exact billing answer. Split chunks are classified as billing; quoted phrases and JSON remain answers. The routine resumes after billing is fixed, and later scheduled runs start normally.
+
+The owner authorized the Mac and VPS builders for this upgrade after GitHub accepted the workflow
+requests but created no build jobs. Both packages use Node 24.22.3 and Bun 1.4.4. Their package,
+native runtime, fuse, launch, manifest and artifact checks passed. The Mac bundle also passed
+strict signature verification. The real Linux package passed all 15 thread action-card checks,
+including local mock OAuth, branch-only Continue, draft preservation and waiting-thread navigation.
+
+Installed checks compare saved IDs and review checkpoints before and after the upgrade, confirm
+account and joined-server access, and close the temporary Mac diagnostic port. They do not include
+live paid provider turns or a new mobile build. Keep installation receipts outside Git.
