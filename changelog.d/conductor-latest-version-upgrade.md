@@ -5,7 +5,7 @@
 - Keep the Cursor billing pause when it asks for a payment method. The request does not start a model fallback or repeated routine attempt.
 - Keep the extra fork capabilities available to older fork clients within their list limit, and add them to protocol 10 without changing its official frozen baseline.
 - Preserve stored tabs, routines, drafts and conversations. Upstream replaces the old browser and file panel widths and sidebar agents/routines toggle; these three display choices do not carry forward.
-- Migrate database schema 61 through 69 at startup. **Version 0.71.0 cannot reopen the database after this upgrade.** An activation failure before migration can use the previous package. After migration, repair forward; do not reset user data.
+- Migrate database schema 61 through 69 at startup. Version 0.71.0 cannot reopen the database after this upgrade. An activation failure before migration can use the previous package. After migration, repair forward; do not reset user data.
 
 ### Fixed
 

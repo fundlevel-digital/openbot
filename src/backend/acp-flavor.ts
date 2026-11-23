@@ -475,7 +475,7 @@ export const CURSOR_ACP_FLAVOR: AcpFlavor = {
     error.code === -32603 && isRecord(error.data) && error.data.message === "Failed to initialize session services"
       ? sourceText("error.provider.cursorSignInUnusable")
       : null,
-  planUsedUpChunk: /^(?:\n\nUpgrade your plan to continue|\s*Add a payment method to continue\.?\s*)$/u,
+  planUsedUpChunk: /^\n\nUpgrade your plan to continue$/u,
   connectionLostChunk: /^\s*Error: RetriableError: \[(?:canceled|aborted|unavailable|deadline_exceeded)\] [^\n]*\s*$/u,
   turnFailure: cursorTurnFailure,
   failureCause: (error) => (CURSOR_STREAM_FAILURE.test(errorText(error)) ? "network" : null),

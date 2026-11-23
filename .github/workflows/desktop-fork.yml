@@ -46,6 +46,7 @@ jobs:
           bun scripts/unlimited-capacity-e2e.ts
           bun scripts/unlimited-memory-storage-e2e.ts
           bun scripts/agent-webhook-routine-e2e.ts
+          bun scripts/cursor-payment-required-e2e.ts
           bun scripts/plan-continuation-e2e.ts
           bun scripts/channel-parent-request-e2e.ts
           bun scripts/channel-routine-busy-e2e.ts
@@ -113,6 +114,7 @@ jobs:
             .openbot-build/unlimited-capacity-e2e/report.json
             .openbot-build/unlimited-memory-storage-e2e/report.json
             .openbot-build/agent-webhook-routine-e2e/report.json
+            .openbot-build/cursor-payment-required-e2e/
             .openbot-build/plan-continuation-e2e/report.json
             .openbot-build/channel-parent-request-e2e/report.json
             .openbot-build/channel-routine-busy-e2e/report.json
